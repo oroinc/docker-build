@@ -51,7 +51,7 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prod_${EXECUTOR_NUMBER}-db-1) FILE_STORAGE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prod_${EXECUTOR_NUMBER}-file-storage-1) docker compose -p prod_${EXECUTOR_NUMBER} --project-directory ../../build/docker-compose build --progress plain backup
+DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prod_${EXECUTOR_NUMBER}-db-1) FILE_STORAGE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prod_${EXECUTOR_NUMBER}-file-storage-1) docker compose -p prod_${EXECUTOR_NUMBER} --project-directory ../../docker-build/docker-compose build --progress plain backup
 ```
 
 #### Init test image for run test.
@@ -59,7 +59,7 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' test_${EXECUTOR_NUMBER}-db-1) FILE_STORAGE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' test_${EXECUTOR_NUMBER}-file-storage-1) docker compose -p test_${EXECUTOR_NUMBER} --project-directory ../../build/docker-compose build --progress plain backup-test
+DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' test_${EXECUTOR_NUMBER}-db-1) FILE_STORAGE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' test_${EXECUTOR_NUMBER}-file-storage-1) docker compose -p test_${EXECUTOR_NUMBER} --project-directory ../../docker-build/docker-compose build --progress plain backup-test
 ```
 
 #### Init image for community application.
@@ -73,5 +73,5 @@ docker cp compose-install-1:/var/www/oro/var/data/ ../image/application/private_
 
 Create image:
 ```
-DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' compose-db-1) docker compose -p prod_${EXECUTOR_NUMBER} --project-directory ../../build/docker-compose -f ../../build/docker-compose/compose-orocommerce-application.yaml build --progress plain backup
+DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' compose-db-1) docker compose -p prod_${EXECUTOR_NUMBER} --project-directory ../../docker-build/docker-compose -f ../../docker-build/docker-compose/compose-orocommerce-application.yaml build --progress plain backup
 ```
