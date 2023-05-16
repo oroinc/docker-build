@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1
+
+ARG ORO_IMAGE_FROM
+ARG ORO_IMAGE_TAG
+
+FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
+
+ARG ORO_DB_VERSION=15
+
+LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}"
+
+RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
+    sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/orocloud-pgdg${ORO_DB_VERSION}.repo && \
+    microdnf module disable postgresql && \
+    microdnf --setopt=install_weak_deps=0 --best --nodocs install \
+    postgresql${ORO_DB_VERSION} \
+    percona-server-mongodb-tools \
+    rsync bzip2 unzip time glibc-langpack-en && \
+    microdnf clean all
+
+COPY docker-entrypoint-init.sh /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT [ "docker-entrypoint.sh" ]
+
+FROM data-tools as backup
+ARG ORO_DB_HOST
+ARG ORO_DB_PORT
+ARG ORO_DB_NAME
+ARG ORO_DB_USER
+ARG ORO_DB_PASSWORD
+ARG ORO_DB_ROOT_USER
+ARG ORO_DB_ROOT_PASSWORD
+ARG ORO_MONGO_HOST
+ARG ORO_MONGO_DATABASE
+ARG ORO_MONGO_USER
+ARG ORO_MONGO_PASSWORD
+# use CACHEBUST for disable cache for only one RUN
+ARG CACHEBUST=1
+RUN echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
+
+FROM data-tools as backup-files
+ARG ORO_DB_HOST
+ARG ORO_DB_PORT
+ARG ORO_DB_NAME
+ARG ORO_DB_USER
+ARG ORO_DB_PASSWORD
+ARG ORO_DB_ROOT_USER
+ARG ORO_DB_ROOT_PASSWORD
+ARG ORO_BACKUP_DATA=/data
+ENV ORO_BACKUP_DATA=$ORO_BACKUP_DATA
+# use CACHEBUST for disable cache for only one RUN
+ARG CACHEBUST=1
+RUN --mount=type=bind,target=$ORO_BACKUP_DATA echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
