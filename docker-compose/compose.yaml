@@ -39,7 +39,6 @@ services:
       "ws":
         condition: service_started
     volumes:
-      - ./nginx/mongo.conf:/etc/nginx/mongo.conf:ro
       - cache:/var/www/oro/var/cache:ro
     networks:
       default:
@@ -58,7 +57,6 @@ services:
       "ws":
         condition: service_started
     volumes:
-      - ./nginx/mongo.conf:/etc/nginx/mongo.conf:ro
       - cache:/var/www/oro/var/cache:ro
     networks:
       default:
@@ -83,7 +81,7 @@ services:
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: console gos:websocket:server -v
+    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/cache/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
@@ -93,10 +91,11 @@ services:
         condition: service_healthy
     volumes:
       - cache:/var/www/oro/var/cache
+      # - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: console oro:message-queue:consume --memory-limit=500 -v
+    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/cache/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
@@ -106,6 +105,7 @@ services:
         condition: service_healthy
     volumes:
       - cache:/var/www/oro/var/cache
+      # - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -141,7 +141,7 @@ services:
     depends_on:
       <<: *default-depends_on
     # volumes:
-    #   - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+    #   - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   functional-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -158,7 +158,7 @@ services:
       EXCLUDED_TESTS:
       ORO_TESTS_PATH:
     # volumes:
-    #   - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+    #   - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   functional:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -177,7 +177,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      # - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -198,8 +198,8 @@ services:
     depends_on:
       <<: *default-depends_on
     # volumes:
-      # - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../image/test/behat.yml:/var/www/oro/behat_oro.yml:ro
+      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -227,8 +227,8 @@ services:
         condition: service_healthy
     volumes:
       - cache:/var/www/oro/var/cache
-      # - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../image/test/behat.yml:/var/www/oro/behat_oro.yml:ro
+      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -251,8 +251,8 @@ services:
       "mail":
         condition: service_started
     # volumes:
-      # - ./../image/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../image/test/behat.yml:/var/www/oro/behat_oro.yml:ro
+      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   chrome:
     image: oroinc/chrome:$ORO_CHROME_VER
@@ -377,7 +377,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      # - ./../image/application/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   db:
     image: docker.io/oroinc/pgsql:${ORO_PG_VER}

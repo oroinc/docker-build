@@ -127,6 +127,14 @@ reindex() {
     fi
 }
 
+generate_OAuth_keys() {
+    if [ ! -f "$APP_FOLDER/var/oauth_public.key" ]; then
+        _note "Generate OpenSSL keys"
+        openssl genrsa -out "$APP_FOLDER/var/oauth_private.key" 2048
+        openssl rsa -in "$APP_FOLDER/var/oauth_private.key" -pubout -out "$APP_FOLDER/var/oauth_public.key"
+    fi
+}
+
 update_settiings() {
     if [[ "X$ORO_APP_DOMAIN" != "X" ]]; then
         _note "Update URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN"
@@ -268,6 +276,9 @@ elif [[ "$1" == 'warmup-cache' ]]; then
     exit 0
 elif [[ "$1" == 'update-settiings' ]]; then
     update_settiings
+    exit 0
+elif [[ "$1" == 'generate-oauth-keys' ]]; then
+    generate_OAuth_keys
     exit 0
 fi
 
