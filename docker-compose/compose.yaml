@@ -25,6 +25,8 @@ services:
         condition: service_started
       "cron":
         condition: service_started
+      "operator":
+        condition: service_started
 
   web:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -78,6 +80,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
+      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -90,8 +93,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
-      # - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      - cache:/var/www/oro/var/cache:ro
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -104,8 +106,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
-      # - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      - cache:/var/www/oro/var/cache:ro
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -120,7 +121,25 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
+      - cache:/var/www/oro/var/cache:ro
+      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+
+  operator:
+    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
+    command: operator
+    env_file: .env
+    environment:
+      COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
+      DOCKER_API_VERSION: v1.43
+    restart: unless-stopped
+    depends_on:
+      "php-fpm-app":
+        condition: service_healthy
+    volumes:
+      - /run/docker.sock:/run/docker.sock
       - cache:/var/www/oro/var/cache
+      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -129,6 +148,8 @@ services:
     env_file: .env
     depends_on:
       <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
 
   install-test:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -140,8 +161,8 @@ services:
     entrypoint: docker-entrypoint.sh
     depends_on:
       <<: *default-depends_on
-    # volumes:
-    #   - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+    volumes:
+      - cache:/var/www/oro/var/cache
 
   functional-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -157,8 +178,6 @@ services:
       TESTS_LIST:
       EXCLUDED_TESTS:
       ORO_TESTS_PATH:
-    # volumes:
-    #   - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   functional:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -177,7 +196,6 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -197,9 +215,6 @@ services:
       BUILD_URL:
     depends_on:
       <<: *default-depends_on
-    # volumes:
-      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -225,10 +240,6 @@ services:
         condition: service_started
       "chrome":
         condition: service_healthy
-    volumes:
-      - cache:/var/www/oro/var/cache
-      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -250,9 +261,6 @@ services:
         condition: service_healthy
       "mail":
         condition: service_started
-    # volumes:
-      # - ./../../baseline/test/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   chrome:
     image: oroinc/chrome:$ORO_CHROME_VER
@@ -358,15 +366,13 @@ services:
 
   restore-test:
     image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
-    command: restore
+    command: restore-test
     user: $ORO_USER_RUNTIME
     env_file: .env
     environment:
       ORO_ENV: test
     depends_on:
       <<: *default-depends_on
-    volumes:
-      - cache:/var/www/oro/var/cache
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
@@ -377,7 +383,6 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   db:
     image: docker.io/oroinc/pgsql:${ORO_PG_VER}
@@ -465,3 +470,4 @@ services:
 
 volumes:
   cache: {}
+  multihost_operation_folder: {}

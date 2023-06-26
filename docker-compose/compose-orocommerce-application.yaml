@@ -98,7 +98,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
 
@@ -115,7 +115,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
 
@@ -134,7 +134,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
 
@@ -147,6 +147,8 @@ services:
       - .env-orocommerce-application
     depends_on:
       <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
 
   install-test:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -160,6 +162,8 @@ services:
     entrypoint: docker-entrypoint.sh
     depends_on:
       <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
 
   functional-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -217,8 +221,6 @@ services:
       BUILD_URL:
     depends_on:
       <<: *default-depends_on
-    # volumes:
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -246,10 +248,8 @@ services:
       "chrome":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -273,8 +273,6 @@ services:
         condition: service_healthy
       "mail":
         condition: service_started
-    # volumes:
-      # - ./../../baseline/test/behat.yml:/var/www/oro/behat_oro.yml:ro
 
   chrome:
     image: oroinc/chrome:$ORO_CHROME_VER
@@ -374,7 +372,7 @@ services:
 
   restore-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
-    command: restore
+    command: restore-test
     user: $ORO_USER_RUNTIME
     env_file:
       - .env

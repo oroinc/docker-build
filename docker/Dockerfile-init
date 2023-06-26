@@ -15,10 +15,11 @@ RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
     microdnf --setopt=install_weak_deps=0 --best --nodocs install \
     postgresql${ORO_DB_VERSION} \
     percona-server-mongodb-tools \
-    rsync bzip2 unzip time glibc-langpack-en && \
+    rsync bzip2 unzip time glibc-langpack-en inotify-tools sudo && \
     microdnf clean all
 
 COPY docker-entrypoint-init.sh /usr/local/bin/docker-entrypoint.sh
+COPY oro_sudo.conf /etc/sudoers.d/orovariables
 ENTRYPOINT [ "docker-entrypoint.sh" ]
 
 FROM data-tools as backup
