@@ -18,7 +18,7 @@ This configuration allows you to perform the following actions:
 1. Get the total test execution time from the statistics database
 
 ## Requirements
-You must have images with the application. See docker/image/application/README.md for more details.
+You must have images with the application. See docker-build/docker/README.md for more details.
 
 If you already have an init image, use it to restore data. If not, install the application. Init images allows quickly restore database, ES indexes, mongo data.
 You can use images built on CI with a PR or other branches.
@@ -91,7 +91,7 @@ ORO_DB_STAT_USER=dev
 # ORO_DB_STAT_PASSWORD
 ```
 
-> **NOTE:** 
+> **NOTE:**
 build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'
 
 Init functional test:

@@ -5,6 +5,7 @@ Scripts and configurations that allow to automate application build and test pro
 - `scripts` folder contains scripts to build the application and run tests (code style, unit); addon services are not required  (PostgreSQL, RMQ, Redis, MongoDB, Elasticsearch). You can use it in the Continuous Integration process in remote and local environments. For more details, see scripts/README.md
 - `docker` folder contains files to build all types of images for the ORO application. For more details, see  docker/README.md
 - `docker-compose` folder contains the docker compose configuration to install, run, init, and tests the ORO application with required services (PostgreSQL, RMQ, Redis, MongoDB, Elasticsearch, Mail). For more details, see `docker-compose/README.md`
+- `jenkins` folder where the jenkins configuration for fast CI/CD deployment is located. Can be used as an example. For more details, see `jenkins/README.md`
 
 ## Environment Requirements
 

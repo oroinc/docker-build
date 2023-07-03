@@ -1,0 +1,43 @@
+jenkins:
+  numExecutors: 0
+  mode: NORMAL
+  scmCheckoutRetryCount: 2
+  authorizationStrategy: unsecured
+  disabledAdministrativeMonitors:
+  - "jenkins.diagnostics.SecurityIsOffMonitor"
+  - "hudson.diagnosis.ReverseProxySetupMonitor"
+
+  nodes:
+    - permanent:
+        labelString: "linux docker1 test"
+        name: "docker-host"
+        remoteFS: "${HOME_FOR_HOST}"
+        retentionStrategy: "always"
+        launcher:
+          inbound:
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: false
+              internalDir: "remoting"
+
+
+unclassified:
+  location:
+    url: "http://master:8080/"
+    adminAddress: you@example.com
+  ansiColorBuildWrapper:
+    globalColorMapName: "xterm"
+  shell:
+    shell: "/bin/bash"
+
+security:
+  scriptApproval:
+    approvedSignatures:
+    - "field hudson.PluginManager activePlugins"
+    - "field hudson.PluginManager$FailedPlugin name"
+    - "method hudson.PluginManager getFailedPlugins"
+    - "method hudson.PluginManager getPlugins"
+    - "method jenkins.model.Jenkins getPluginManager"
+    - "staticMethod jenkins.model.Jenkins getInstance"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods putAt java.lang.Object java.lang.String java.lang.Object"
+
