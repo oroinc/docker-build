@@ -79,7 +79,7 @@ services:
     depends_on:
       <<: *default-depends_on
     volumes:
-      - cache:/var/www/oro/var/cache
+      - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
 
   ws:
