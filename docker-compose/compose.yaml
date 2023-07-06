@@ -77,7 +77,7 @@ services:
     depends_on:
       <<: *default-depends_on
     volumes:
-      - cache:/var/www/oro/var/cache
+      - cache:/var/www/oro/var/cache:ro
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
