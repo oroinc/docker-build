@@ -159,7 +159,6 @@ services:
       - .env-orocommerce-application
     environment:
       ORO_ENV: test
-    entrypoint: docker-entrypoint.sh
     depends_on:
       <<: *default-depends_on
     volumes:
@@ -169,7 +168,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional-init
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file:
       - .env
       - .env-orocommerce-application
@@ -185,7 +183,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file:
       - .env
       - .env-orocommerce-application
@@ -206,7 +203,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat-init
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file:
       - .env
       - .env-orocommerce-application
@@ -226,7 +222,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file:
       - .env
       - .env-orocommerce-application
@@ -255,7 +250,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat --skip-isolators
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file:
       - .env
       - .env-orocommerce-application
@@ -377,6 +371,32 @@ services:
     env_file:
       - .env
       - .env-orocommerce-application
+    depends_on:
+      <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
+
+  update:
+    image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
+    command: update
+    user: $ORO_USER_RUNTIME
+    env_file: .env
+    depends_on:
+      <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
+
+  update-test:
+    image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
+    command: update
+    user: $ORO_USER_RUNTIME
+    env_file: .env
+    environment:
+      ORO_ENV: test
     depends_on:
       <<: *default-depends_on
     volumes:

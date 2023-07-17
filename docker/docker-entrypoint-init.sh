@@ -6,6 +6,7 @@ shopt -s dotglob
 
 # logging functions
 _log() {
+    [[ $ORO_ENTRYPOINT_QUIET ]] && return 0
     local type="$1"
     shift
     # accept argument string or stdin
@@ -112,6 +113,34 @@ warmup_cache() {
     set -x
     php "$APP_FOLDER/bin/console" cache:warmup || _error "Can't warmup cache"
     set +x
+}
+
+clear_cache() {
+    local REDIS_CONNECT REDIS_PROTOCOL i
+    _note "Clear cache for $ORO_ENV environment"
+    set -x
+    rm -rf "$APP_FOLDER/var/cache/$ORO_ENV" || _error "Can't clear cache"
+    set +x
+    i=0
+    for REDIS_CONNECT in ORO_REDIS_SESSION_DSN ORO_REDIS_CACHE_DSN ORO_REDIS_DOCTRINE_DSN ORO_REDIS_LAYOUT_DSN; do
+        # Check DSN variables in cycle if set or not. In case if not set generate it from ORO_REDIS_URL
+        if [[ "X${!REDIS_CONNECT}" == 'X' && "X$ORO_REDIS_URL" != 'X' ]]; then
+            REDIS_CONNECT=$ORO_REDIS_URL/$i
+            ((i = i + 1))
+        else
+            REDIS_CONNECT=${!REDIS_CONNECT}
+        fi
+        # _note "REDIS_CONNECT=$REDIS_CONNECT"
+        REDIS_PROTOCOL=$(echo "$REDIS_CONNECT" | cut -d':' -f1)
+        if [[ "$REDIS_PROTOCOL" =~ ^redis ]]; then
+            set -x
+            redis-cli -u "$REDIS_CONNECT" FLUSHDB || {
+                set +x
+                _error "Can't run FLUSHDB"
+            }
+            set +x
+        fi
+    done
 }
 
 reindex() {
@@ -347,6 +376,11 @@ elif [[ "$1" == 'operator' ]]; then
                 ;;
             esac
         done
+    exit 0
+elif [[ "$1" == 'update' ]]; then
+    clear_cache
+    _note 'Run console oro:platform:update --force'
+    php "$APP_FOLDER/bin/console" oro:platform:update --force
     exit 0
 fi
 

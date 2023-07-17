@@ -158,7 +158,6 @@ services:
     env_file: .env
     environment:
       ORO_ENV: test
-    entrypoint: docker-entrypoint.sh
     depends_on:
       <<: *default-depends_on
     volumes:
@@ -168,7 +167,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional-init
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file: .env
     environment:
       ORO_LOCAL_RUN:
@@ -183,7 +181,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file: .env
     environment:
       ORO_FUNCTIONAL_ARGS:
@@ -201,7 +198,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat-init
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file: .env
     environment:
       ORO_BEHAT_ARGS:
@@ -220,7 +216,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file: .env
     environment:
       ORO_BEHAT_ARGS:
@@ -245,7 +240,6 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat --skip-isolators
     user: $ORO_USER_RUNTIME
-    entrypoint: docker-entrypoint.sh
     env_file: .env
     environment:
       ORO_BEHAT_ARGS:
@@ -355,7 +349,7 @@ services:
         condition: service_started
 
   restore:
-    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
+    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore
     user: $ORO_USER_RUNTIME
     env_file: .env
@@ -365,7 +359,7 @@ services:
       - cache:/var/www/oro/var/cache
 
   restore-test:
-    image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
+    image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore-test
     user: $ORO_USER_RUNTIME
     env_file: .env
@@ -373,6 +367,29 @@ services:
       ORO_ENV: test
     depends_on:
       <<: *default-depends_on
+
+  update:
+    image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
+    command: update
+    user: $ORO_USER_RUNTIME
+    env_file: .env
+    depends_on:
+      <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
+      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
+
+  update-test:
+    image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
+    command: update
+    user: $ORO_USER_RUNTIME
+    env_file: .env
+    environment:
+      ORO_ENV: test
+    depends_on:
+      <<: *default-depends_on
+    volumes:
+      - cache:/var/www/oro/var/cache
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
