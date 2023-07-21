@@ -1,6 +1,6 @@
 jobs:
   - script: >
-      multibranchPipelineJob("customer") {
+      multibranchPipelineJob("multibranch_pipeline") {
         branchSources {
           branchSource {
             source {
@@ -8,11 +8,11 @@ jobs:
                 // Select the GitLab Server where you want the projects to be discovered from.
                 serverName("default")
                 // Specify the namespace which owns your projects.
-                projectOwner("services")
+                projectOwner("${GITLAB_PROJECT_OWNER}")
                 // Select the project on which you want to perform the Multibranch Pipeline Job.
-                projectPath("services/${GITLAB_REPOSITORY_NAME}")
+                projectPath("${GITLAB_PROJECT_PATH}")
                 // Checkout credentials is only needed for private projects.
-                credentialsId("${GITLAB_USER_CREDENTIALS_ID}")
+                credentialsId("jenkins-oro-gitlab")
                 traits {
                   // Discovers branches on the repository.
                   gitLabBranchDiscovery {
