@@ -6,6 +6,7 @@ shopt -s dotglob
 
 # logging functions
 _log() {
+    [[ $ORO_ENTRYPOINT_QUIET ]] && return 0
     local type="$1"
     shift
     # accept argument string or stdin
@@ -114,6 +115,34 @@ warmup_cache() {
     set +x
 }
 
+clear_cache() {
+    local REDIS_CONNECT REDIS_PROTOCOL i
+    _note "Clear cache for $ORO_ENV environment"
+    set -x
+    rm -rf "$APP_FOLDER/var/cache/$ORO_ENV" || _error "Can't clear cache"
+    set +x
+    i=0
+    for REDIS_CONNECT in ORO_REDIS_SESSION_DSN ORO_REDIS_CACHE_DSN ORO_REDIS_DOCTRINE_DSN ORO_REDIS_LAYOUT_DSN; do
+        # Check DSN variables in cycle if set or not. In case if not set generate it from ORO_REDIS_URL
+        if [[ "X${!REDIS_CONNECT}" == 'X' && "X$ORO_REDIS_URL" != 'X' ]]; then
+            REDIS_CONNECT=$ORO_REDIS_URL/$i
+            ((i = i + 1))
+        else
+            REDIS_CONNECT=${!REDIS_CONNECT}
+        fi
+        # _note "REDIS_CONNECT=$REDIS_CONNECT"
+        REDIS_PROTOCOL=$(echo "$REDIS_CONNECT" | cut -d':' -f1)
+        if [[ "$REDIS_PROTOCOL" =~ ^redis ]]; then
+            set -x
+            redis-cli -u "$REDIS_CONNECT" FLUSHDB || {
+                set +x
+                _error "Can't run FLUSHDB"
+            }
+            set +x
+        fi
+    done
+}
+
 reindex() {
     _note "Reindex search engine"
     set -x
@@ -196,6 +225,54 @@ update_settiings() {
     fi
 }
 
+entity_extend_update() {
+    local RETVAL FILENAME
+    FILENAME=$1
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    _note "Stop consumer services"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/stop" | jq .
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    _note "Enable maintenance mode"
+    sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:lock -v --no-interaction"
+    touch /var/www/oro/var/cache/maintenance_lock
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    # Use pause instead stop for keep instance IP
+    _note "Pause $ORO_PAUSE_SERVICES services"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/pause" | jq .
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    _note "Run 'console oro:entity-extend:update' operation"
+    set +e
+    sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:entity-extend:update --no-interaction"
+    RETVAL=$?
+    set -e
+    if [ $RETVAL -eq 0 ]; then
+        _note "Successfully executed entity extend update"
+        echo "{ \"status\": \"success\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    else
+        _warn "Unable to execute entity extend update"
+        echo "{ \"status\": \"failed\", \"timestamp\": $(date +%s), \"errorCode\": \"$RETVAL\", }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    fi
+
+    _note "Restart $ORO_RESTART_SERVICES services"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_RESTART_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/restart" | jq .
+
+    _note "Start $ORO_CONSUMER_SERVICE service"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/start" | jq .
+
+    if [[ -e /var/www/oro/var/cache/maintenance_lock ]]; then
+        _note "Disable maintenance mode"
+        sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:unlock -v --no-interaction"
+        rm -f /var/www/oro/var/cache/maintenance_lock || :
+    fi
+
+    _note "Finish operation"
+}
+
 APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
 if [ "${1:0:1}" = '-' ]; then
     set -- bash "$@"
@@ -222,7 +299,7 @@ elif [ "$1" == 'backup-mongo' ]; then
         copy_files "$ORO_BACKUP_DATA/private_storage/" '/oro_init/private_storage'
     fi
     exit 0
-elif [[ "$1" == 'restore' ]]; then
+elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     restore_pg_db '/oro_init/db.sql'
     if [[ -f "$APP_FOLDER/config/parameters.yml" ]] && grep -q '^[[:blank:]]*gaufrette_adapter.public' "$APP_FOLDER/config/parameters.yml"; then
         mongo_put '/oro_init/public_storage' "public_${ORO_MONGO_DATABASE}"
@@ -279,6 +356,31 @@ elif [[ "$1" == 'update-settiings' ]]; then
     exit 0
 elif [[ "$1" == 'generate-oauth-keys' ]]; then
     generate_OAuth_keys
+    exit 0
+elif [[ "$1" == 'operator' ]]; then
+    _note 'Run operator service'
+    [ -d "$ORO_MULTIHOST_OPERATION_FOLDER" ] || _error "The folder $ORO_MULTIHOST_OPERATION_FOLDER not exist"
+    rm -rf "${ORO_MULTIHOST_OPERATION_FOLDER:?}"/*
+    inotifywait -qm -e 'close_write,moved_to' --format '%e %f' "$ORO_MULTIHOST_OPERATION_FOLDER" |
+        while read -r ACTION REQUESTFILENAME; do
+            [[ $REQUESTFILENAME =~ ^entity_extend_update_.*\.request\.json$ ]] || continue
+            _note "Get ACTION=$ACTION REQUESTFILENAME=$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME"
+            OPERATION_NAME=$(jq -r '.operationName' "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME")
+            RESPONSEFILENAME=$(jq -r '.responseFileName' "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME")
+            [[ -e "$ORO_MULTIHOST_OPERATION_FOLDER/$RESPONSEFILENAME" ]] && continue
+            [[ $DEBUG ]] && _note "Detect OPERATION_NAME=$OPERATION_NAME"
+            case "$OPERATION_NAME" in
+            entity_extend_update)
+                entity_extend_update "$RESPONSEFILENAME"
+                # rm -fv "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME" || :
+                ;;
+            esac
+        done
+    exit 0
+elif [[ "$1" == 'update' ]]; then
+    clear_cache
+    _note 'Run console oro:platform:update --force'
+    php "$APP_FOLDER/bin/console" oro:platform:update --force
     exit 0
 fi
 

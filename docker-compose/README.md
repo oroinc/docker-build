@@ -11,6 +11,7 @@ Below is the configuration for docker compose and configuration files for servic
 This configuration allows you to perform the following actions:
 
 1. Install application
+1. Create init image
 1. Init application with init image
 1. Run application
 1. Run functional test
@@ -18,7 +19,7 @@ This configuration allows you to perform the following actions:
 1. Get the total test execution time from the statistics database
 
 ## Requirements
-You must have images with the application. See docker/image/application/README.md for more details.
+You must have images with the application. See docker-build/docker/README.md for more details.
 
 If you already have an init image, use it to restore data. If not, install the application. Init images allows quickly restore database, ES indexes, mongo data.
 You can use images built on CI with a PR or other branches.
@@ -49,6 +50,12 @@ Install application for test mode:
 docker compose up install-test
 ```
 
+### Make init image
+To save application data, you can prepare an init image that contains a database dump and file storage data. This image can then be easily used for initialization or recovery.
+```
+   CACHEBUST=$(uuidgen) DB_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' docker-compose-db-1) FILE_STORAGE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' docker-compose-file-storage-1) docker compose build backup
+```
+
 ### Init application
 ```
 docker compose up restore
@@ -75,6 +82,16 @@ docker compose up -d web
 docker compose up application
 ```
 
+### Update application
+Edit ORO_IMAGE_TAG variable in `.env`. Set new tag. Then run:
+> **NOTE:** The app will be unavailable during the update. For docker compose, rollback is not supported. If there is important data, you need to make a new init image with the data included. In case the update fails, you can use it for recovery.
+
+```
+docker compose stop web php-fpm-app consumer ws cron
+docker compose up -V update
+docker compose up application
+```
+
 ### Run functional test
 > **NOTE:** To run functional tests, the application must be ready: - the `restore-test` or `install-test` action must be performed.
 
@@ -91,7 +108,7 @@ ORO_DB_STAT_USER=dev
 # ORO_DB_STAT_PASSWORD
 ```
 
-> **NOTE:** 
+> **NOTE:**
 build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'
 
 Init functional test:

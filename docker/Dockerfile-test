@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG ORO_BASELINE_VERSION=master-latest
+ARG ORO_BASELINE_VERSION=5.1-latest
 ARG ORO_IMAGE_FROM=docker.io/oroinc/test
 
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
