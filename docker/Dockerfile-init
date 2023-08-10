@@ -7,7 +7,11 @@ FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
 
 ARG ORO_DB_VERSION=15
 
-LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}"
+LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}" \
+      com.oroinc.orocloud.app="/var/www/oro" \
+      com.oroinc.orocloud.assets="true" \
+      com.oroinc.orocloud.vendors="true"
+
 
 RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
     sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/orocloud-pgdg${ORO_DB_VERSION}.repo && \

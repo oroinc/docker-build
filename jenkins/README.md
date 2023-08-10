@@ -1,58 +1,77 @@
-# Jenkins configurations to run CI/CD
+# Jenkins Configuration as Code
 
-This folder contains docker compose configuration and Jenkins Configuration as Code. This allows you to run the [Jenkins CI](https://jenkins.io) in a container and run jobs. That will allow you to quickly and easily deploy the CI/CD environment used by ORO. And use it locally for easy testing, or as an example to deploy on your servers.
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Additional reading](#additional-reading)
+
+## Overview
+
+Welcome to the Jenkins Configuration as Code tool! This repository provides you with everything you need to set up [Jenkins CI](https://jenkins.io) using Docker Compose. By leveraging these tools, you can run Jenkins in a container and execute jobs effortlessly. The same setup is used internally in Oro.
 
 ## Requirements
 
-The main requirement is docker and docker compose plugin. You can use any operating system with docker support, but a Linux-based OS is recommended.
+Before you start, ensure you have the following requirements are met:
+
+- Docker
+- Docker Compose
+
+This setup works on any operating system with Docker support, but we recommend using a Linux-based OS for optimal performance.
 
 ## Configuration
 
-Before you start, you need to specify the GID of the docker group in the DOCKER_GROUP_ID variable in the `.env` file. To determine the GID, use the following command:
-```
-getent group docker | cut -d: -f3
-```
-You also need to set the UID and GID variables. To determine the UID and GID, use the following command:
-```
-$ id -u
-1000
-$ id -g
-1000
-```
+Before launching Jenkins, follow these configuration steps:
 
-### Configuration for private repositories
-Several credentials may be required if you use private repositories, depending on what resources you require access to.
+### Jenkins Configuration
 
-#### Use gitlab for project code
-Two credentials need to be configured:
-1. A type of `GitLab Personal Access Token` with scope `api` via which communication with the API is carried out. Used in global settings.  Note: Make sure to give the `sudo`  capability to an admin  as it is required for the configuration of systemhooks and triggering of MRs). 
-2. A type of `User Name with Password` used to clone the git repository. Used in a job.
-More details https://plugins.jenkins.io/gitlab-branch-source/
+1. **Specify Docker Group GID**: Open the `.env` file and set the `DOCKER_GROUP_ID` variable to the GID of the docker group on your system. To find the GID, run the following command:
+    ```
+    getent group docker | cut -d: -f3
+    ```
+2. **Set UID and GID Variables**: Determine the `UID` and `GID` of your user account and set them as variables in the `.env` file. Use the following commands to find them:
+   ```
+    id -u
+    # 1000
+   
+    id -g
+    # 1000
+   ```
+   
+3. **Set GitLab and GitHub credentials**: Create [GitLab Personal access token](https://git.oroinc.com/-/profile/personal_access_tokens) with `api`, `read_api`, `read_user` and `read_repository` scopes and [GitHub Personal access token](https://github.com/settings/tokens) with `read` scope. Then, fill in the following data in `.env` file:
+   ```
+   GITHUB_USER_NAME=github_user
+   GITHUB_USER_TOKEN=ghp_xxxxxxxxxxxxx
+   
+   GITLAB_USER_NAME=gitlab_user
+   GITLAB_USER_TOKEN=glpat-xxxxxxxxxxxxx
+   ```
+4. **Configure GitLab repository**: Configure your project in the `.env` file
+   ```
+   # Example for https://gitlab.com/gitlab-org/gitlab-foss
+   
+   GITLAB_DOMAIN=https://gitlab.com
+   GITLAB_PROJECT_OWNER=gitlab-org
+   GITLAB_PROJECT_PATH=gitlab-org/gitlab-foss
+   ```
 
-#### Use github for project code
-To use a private repository from github, we  recommend using the credentials type `GitHub Application`. For more information, see https://github.com/jenkinsci/github-branch-source-plugin/blob/master/docs/github-app.adoc
+### Project Configuration
 
-#### Composer authentication
-Composer must be authorized to install vendors from private repositories. Because vendors can be located both on GitLab and/or on GitHub, we authorize both and provide http-basic authentication for composer. To do this, use the `GitHub Application` credentials type or a `Username with password`, where a personal access token is used as the password.
+@slava - please describe required changes in `.env-build` and `Jenkinsfile`.
 
-#### Access to the docker registry where the images should be stored.
-After building the images, the job pushes them into the registry. If this is a private registry, then you also need to provide credentials for access. This is typically done using the credentials type `User Name and Password`.
-Alternatively, if the registry is in GCP, then you need to create a service account and get a json file with an authorization key. For more information, see https://cloud.google.com/iam/docs/service-account-creds
+## Usage
 
-**Note:** The credentials ID you create must match the credentials ID in the `Jenkinsfile`.
+Once both Jenkins and your project are configured, you can start the Jenkins instance, by running the following command: 
 
-You can specify credentials in `.env` and use `jcasc/credentials.yaml` as an example. For a more detailed example, see https://github.com/jenkinsci/configuration-as-code-plugin/blob/master/demos/credentials/README.md and https://github.com/jenkinsci/configuration-as-code-plugin/blob/master/docs/features/secrets.adoc
-
-## Run jenkins master
-
-To launch a jenkins instance, run:
 ```
 docker compose up -d
 ```
 
-The instance will start at http://localhost:8080 . You can open Jenkins GUI in your browser. The system is completely ready to work.
+The Jenkins instance will be accessible at http://localhost:8080. Open this URL in your browser to access the Jenkins GUI and start running jobs.
 
-## Jobs
+### Jobs
 Two jobs are created by default:
 - [docker-pipeline-example](http://localhost:8080/job/docker-pipeline) - Pipeline job example
-- [orocommerce-application](http://localhost:8080/job/orocommerce-application) - The pipeline to run `Jenkinsfile` from repository https://github.com/oroinc/orocommerce-application.git. The job clones the repository's `5.1.0` tag, builds the application, creates the application runtime, test, init and init-test images, runs code style and unit tests. The `Jenkinsfile` also provides an example of how to run functional tests and behat tests (commented out).
+- [orocommerce-application](http://localhost:8080/job/orocommerce-application) - The pipeline to run `Jenkinsfile` from repository https://github.com/oroinc/orocommerce-application.git. The job clones the repository's 5.1.0 tag, builds the application, creates the application runtime, test, init, and init-test images, runs code style and unit tests. The Jenkinsfile also provides an example of how to run functional tests and Behat tests (commented out).
+
+For more information, see [Advanced configuration](./doc/configuration.md).

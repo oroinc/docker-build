@@ -9,6 +9,10 @@ ENV ORO_APP_FOLDER=/var/www/oro \
     ORO_USER=root \
     ORO_USER_RUNTIME=www-data
 
+LABEL com.oroinc.orocloud.app="/var/www/oro" \
+      com.oroinc.orocloud.assets="true" \
+      com.oroinc.orocloud.vendors="true"
+
 RUN --mount=type=bind,target=/source \
     groupadd --system --gid 2001 $ORO_USER_RUNTIME && useradd --home-dir $ORO_APP_FOLDER/var --uid 2002 --gid $ORO_USER_RUNTIME --no-create-home --system $ORO_USER_RUNTIME && \
     rsync -a --exclude-from=/source/.rsync-exclude-test --chown="$ORO_USER":"$ORO_USER_RUNTIME" /source/ $ORO_APP_FOLDER && \

@@ -149,6 +149,8 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
 
   install-test:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -163,6 +165,8 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
 
   functional-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
