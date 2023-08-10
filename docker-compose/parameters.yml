@@ -1,6 +1,0 @@
-parameters:
-    redis_dsn_cache: '%env(ORO_REDIS_CACHE_DSN)%'
-    redis_dsn_doctrine: '%env(ORO_REDIS_DOCTRINE_DSN)%'
-    redis_dsn_layout: '%env(ORO_REDIS_LAYOUT_DSN)%'
-    oro_multi_host.enabled: true
-    multi_host_operation_directory: '%env(ORO_MULTIHOST_OPERATION_FOLDER)%'

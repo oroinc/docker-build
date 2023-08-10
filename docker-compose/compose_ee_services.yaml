@@ -17,7 +17,6 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
   
   php-fpm-app:
     volumes:
@@ -25,7 +24,6 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
     depends_on:
       <<: *default-depends_on_ee_services
 
@@ -34,14 +32,12 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
 
   consumer:
     volumes:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
 
   cron:
     volumes:
@@ -49,7 +45,6 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
 
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
@@ -68,7 +63,14 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
+
+  backup:
+    depends_on:
+      <<: *default-depends_on_ee_services
+
+  backup-test:
+    depends_on:
+      <<: *default-depends_on_ee_services
 
   restore:
     depends_on:
@@ -77,8 +79,14 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
-      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh:ro
+
+  restore-test:
+    depends_on:
+      <<: *default-depends_on_ee_services
+    volumes:
+      - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
 
   install:
     depends_on:
@@ -87,7 +95,14 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
+
+  install-test:
+    depends_on:
+      <<: *default-depends_on_ee_services
+    volumes:
+      - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
 
   functional:
     depends_on:
@@ -96,7 +111,14 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
-      - ./parameters.yml:/var/www/oro/config/parameters.yml:ro
+
+  behat:
+    depends_on:
+      <<: *default-depends_on_ee_services
+    volumes:
+      - cache:/var/www/oro/var/cache
+      - public_storage:/var/www/oro/public/media
+      - private_storage:/var/www/oro/var/data
 
   search-engine:
     image: elasticsearch:${ORO_ES_VER}
