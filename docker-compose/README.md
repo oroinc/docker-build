@@ -5,6 +5,7 @@ Below is the configuration for docker compose and configuration files for servic
 ## Types of compose configuration
 1. `compose.yaml` - for the enterprise version of the application. The services used are PostgreSQL, Redis, RMQ, Elasticsearch, Mongo DB.
 1. `compose-orocommerce-application.yaml` - for the community version of the application. Only PostgreSQL is used.
+1. `compose_ee_services.yaml` - used together with `compose-orocommerce-application.yaml` and allow run enterprise version of the application with all services except mongo DB. Used to launch enterprise version of the application in VirtualBox on OS windows and iOS.
 
 > **NOTE:** `compose.yaml` is used by default and should not be specified in commands. If it is necessary to use `compose-orocommerce-application.yaml`, it must be specified using the `-f` option. Example: `-f compose-orocommerce-application.yaml`
 
