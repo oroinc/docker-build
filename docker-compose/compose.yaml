@@ -41,7 +41,7 @@ services:
       "ws":
         condition: service_started
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
     networks:
       default:
         aliases:
@@ -59,7 +59,7 @@ services:
       "ws":
         condition: service_started
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
     networks:
       default:
         aliases:
@@ -79,7 +79,7 @@ services:
     depends_on:
       <<: *default-depends_on
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
 
   ws:
@@ -93,7 +93,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -106,7 +106,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -121,7 +121,7 @@ services:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache:ro
+      - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
 
   operator:

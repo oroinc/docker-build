@@ -318,7 +318,9 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
             copy_files '/oro_init/private_storage/' "$APP_FOLDER/var/data"
         fi
     fi
-    update_settiings
+    if [[ "$1" == 'restore' ]]; then
+        update_settiings
+    fi
     warmup_cache
     reindex
     exit 0
