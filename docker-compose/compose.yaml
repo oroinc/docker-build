@@ -87,7 +87,7 @@ services:
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/cache/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
+    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
@@ -101,7 +101,7 @@ services:
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/cache/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
+    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
