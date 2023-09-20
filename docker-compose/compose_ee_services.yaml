@@ -17,6 +17,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
   
   php-fpm-app:
     volumes:
@@ -24,6 +25,7 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
     depends_on:
       <<: *default-depends_on_ee_services
 
@@ -32,12 +34,14 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   consumer:
     volumes:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   cron:
     volumes:
@@ -45,6 +49,7 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
@@ -63,6 +68,7 @@ services:
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   backup:
     depends_on:
@@ -111,6 +117,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   behat:
     depends_on:
@@ -119,6 +126,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   search-engine:
     image: elasticsearch:${ORO_ES_VER}
@@ -172,3 +180,4 @@ volumes:
   multihost_operation_folder: {}
   public_storage: {}
   private_storage: {}
+  maintenance_folder: {}

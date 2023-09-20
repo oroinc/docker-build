@@ -42,7 +42,7 @@ services:
         condition: service_started
     volumes:
       - cache:/var/www/oro/var/cache:ro
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
     networks:
       default:
         aliases:
@@ -61,7 +61,7 @@ services:
         condition: service_started
     volumes:
       - cache:/var/www/oro/var/cache:ro
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
     networks:
       default:
         aliases:
@@ -83,11 +83,11 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
+    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
@@ -97,11 +97,11 @@ services:
         condition: service_healthy
     volumes:
       - cache:/var/www/oro/var/cache:ro
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
+    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
     env_file: .env
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
@@ -111,7 +111,7 @@ services:
         condition: service_healthy
     volumes:
       - cache:/var/www/oro/var/cache:ro
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -128,7 +128,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
@@ -145,7 +145,7 @@ services:
       - /run/docker.sock:/run/docker.sock
       - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
@@ -200,6 +200,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -243,7 +244,7 @@ services:
       "chrome":
         condition: service_healthy
     volumes:
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -314,6 +315,8 @@ services:
         CACHEBUST:
       tags:
         - $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
+      labels:
+        com.oroinc.orocloud.image_type: "init"
       extra_hosts:
         - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
@@ -348,6 +351,8 @@ services:
         CACHEBUST:
       tags:
         - $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
+      labels:
+        com.oroinc.orocloud.image_type: "init-test"
       extra_hosts:
         - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
@@ -388,7 +393,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   update-test:
@@ -402,7 +407,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
@@ -413,7 +418,7 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      - shared_data_folder:/var/www/oro/var/data/shared_data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   db:
     image: docker.io/oroinc/pgsql:${ORO_PG_VER}
@@ -502,4 +507,4 @@ services:
 volumes:
   cache: {}
   multihost_operation_folder: {}
-  shared_data_folder: {}
+  maintenance_folder: {}

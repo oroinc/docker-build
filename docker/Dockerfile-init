@@ -1,16 +1,25 @@
 # syntax=docker/dockerfile:1
 
-ARG ORO_IMAGE_FROM
 ARG ORO_IMAGE_TAG
+ARG ORO_IMAGE_FROM
 
 FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
 
 ARG ORO_DB_VERSION=15
+ARG ORO_IMAGE_TAG
+ARG ORO_IMAGE_FROM
 
 LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}" \
-      com.oroinc.orocloud.app="/var/www/oro" \
-      com.oroinc.orocloud.assets="true" \
-      com.oroinc.orocloud.vendors="true"
+    com.oroinc.orocloud.app="/var/www/oro" \
+    com.oroinc.orocloud.image_type="init" \
+    org.opencontainers.image.title="Application init image" \
+    org.opencontainers.image.description="Application init image. Used for init DB and storage. Set parameters in application. Update application" \
+    org.opencontainers.image.authors="ORO Inc." \
+    org.opencontainers.image.vendor="ORO Inc." \
+    org.opencontainers.image.url="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.documentation="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
+
 
 
 RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \

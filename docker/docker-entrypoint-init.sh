@@ -237,7 +237,7 @@ entity_extend_update() {
 
     _note "Enable maintenance mode"
     sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:lock -v --no-interaction"
-    touch /var/www/oro/var/data/shared_data/maintenance_lock
+    [[ -e "$ORO_MAINTENANCE_LOCK_FILE_PATH" ]] || sudo -E -u "$ORO_USER_RUNTIME" bash -c "touch '$ORO_MAINTENANCE_LOCK_FILE_PATH'"
     echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
 
     # Use pause instead stop for keep instance IP
@@ -264,10 +264,10 @@ entity_extend_update() {
     _note "Start $ORO_CONSUMER_SERVICE service"
     curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/start" | jq .
 
-    if [[ -e /var/www/oro/var/data/shared_data/maintenance_lock ]]; then
+    if [[ -e "$ORO_MAINTENANCE_LOCK_FILE_PATH" ]]; then
         _note "Disable maintenance mode"
         sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:unlock -v --no-interaction"
-        rm -f /var/www/oro/var/data/shared_data/maintenance_lock || :
+        rm -f "$ORO_MAINTENANCE_LOCK_FILE_PATH" || :
     fi
 
     _note "Finish operation"

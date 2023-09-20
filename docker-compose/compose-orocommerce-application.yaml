@@ -38,6 +38,7 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media:ro
       - private_storage:/var/www/oro/var/data:ro
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
     networks:
       default:
         aliases:
@@ -60,6 +61,7 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
     networks:
       default:
         aliases:
@@ -84,10 +86,11 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
+    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
     env_file:
       - .env
       - .env-orocommerce-application
@@ -101,10 +104,11 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=/var/www/oro/var/data/shared_data/maintenance_lock --lock=/var/www/oro/var/maintenance/maintenance_lock --lock=/var/www/oro/maintenance_lock --lock=/var/www/oro/emergency_lock "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
+    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
     env_file:
       - .env
       - .env-orocommerce-application
@@ -118,6 +122,7 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -137,6 +142,7 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -202,6 +208,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -249,6 +256,7 @@ services:
     volumes:
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -393,6 +401,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   update-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
@@ -407,6 +416,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
@@ -421,6 +431,7 @@ services:
       - cache:/var/www/oro/var/cache
       - public_storage:/var/www/oro/public/media
       - private_storage:/var/www/oro/var/data
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   db:
     image: docker.io/oroinc/pgsql:${ORO_PG_VER}
@@ -445,3 +456,4 @@ volumes:
   cache: {}
   public_storage: {}
   private_storage: {}
+  maintenance_folder: {}
