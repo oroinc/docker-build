@@ -32,7 +32,7 @@ backup_pg_db() {
     export PGPASSWORD="$ORO_DB_PASSWORD"
     _note "Backup DB from: $ORO_DB_NAME to file: $DB_FILE"
     mkdir -p "$(dirname "$DB_FILE")"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     pg_dump -Fp --no-acl --no-owner --no-privileges -c --if-exists --user="$ORO_DB_USER" --host="$ORO_DB_HOST" --port="$ORO_DB_PORT" "$ORO_DB_NAME" >"$DB_FILE" || _error "Can't create backup to file $DB_FILE"
     set +x
 }
@@ -51,7 +51,7 @@ restore_pg_db() {
     ORO_TABLES_NUM=$($PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -t -c "SELECT count(table_name) FROM information_schema.tables WHERE table_schema = 'public';")
     if [ "$ORO_TABLES_NUM" -eq 0 ]; then
         _note "Restore dump from file: $DB_FILE to: $ORO_DB_NAME"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         $PG_COMMAND --set ON_ERROR_STOP=on $DB_USER_O $DB_HOST_O $DB_PORT_O -d "$ORO_DB_NAME" <"$DB_FILE" >/dev/null || _error "Can't restore dump"
         $PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -c "GRANT CONNECT ON DATABASE $ORO_DB_NAME TO $ORO_DB_USER;" || _error "Can't grant privileges 1"
         $PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -c "GRANT USAGE ON SCHEMA public TO $ORO_DB_USER;" || _error "Can't grant privileges 2"
@@ -110,7 +110,7 @@ copy_files() {
 
 warmup_cache() {
     _note "Warmup cache"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     php "$APP_FOLDER/bin/console" cache:warmup || _error "Can't warmup cache"
     set +x
 }
@@ -118,7 +118,7 @@ warmup_cache() {
 clear_cache() {
     local REDIS_CONNECT REDIS_PROTOCOL i
     _note "Clear cache for $ORO_ENV environment"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     rm -rf "$APP_FOLDER/var/cache/$ORO_ENV" || _error "Can't clear cache"
     set +x
     i=0
@@ -133,7 +133,7 @@ clear_cache() {
         # _note "REDIS_CONNECT=$REDIS_CONNECT"
         REDIS_PROTOCOL=$(echo "$REDIS_CONNECT" | cut -d':' -f1)
         if [[ "$REDIS_PROTOCOL" =~ ^redis ]]; then
-            set -x
+            [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
             redis-cli -u "$REDIS_CONNECT" FLUSHDB || {
                 set +x
                 _error "Can't run FLUSHDB"
@@ -145,12 +145,12 @@ clear_cache() {
 
 reindex() {
     _note "Reindex search engine"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     php "$APP_FOLDER/bin/console" oro:search:reindex || _error "Can't reindex search"
     set +x
     if bin/console | grep -q oro:website-search:reindex; then
         _note "Reindex website search engine"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:website-search:reindex || _error "Can't reindex website search"
         set +x
     fi
@@ -167,7 +167,7 @@ generate_OAuth_keys() {
 update_settiings() {
     if [[ "X$ORO_APP_DOMAIN" != "X" ]]; then
         _note "Update URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_ui.application_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
         php "$APP_FOLDER/bin/console" oro:config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
         php "$APP_FOLDER/bin/console" oro:config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
@@ -175,51 +175,51 @@ update_settiings() {
     fi
     if "$APP_FOLDER/bin/console" | grep -q 'oro:b2c-config:update' && [[ "X$ORO_APP_DOMAIN_B2C" != 'X' ]]; then
         _note "Update B2C URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C" || :
         php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C" || :
         set +x
     fi
     if [[ "X$ORO_USER_NAME" != "X" && "X$ORO_USER_EMAIL" != "X" ]]; then
         _note "Update email $ORO_USER_EMAIL for user $ORO_USER_NAME"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:user:update "$ORO_USER_NAME" --user-email="$ORO_USER_EMAIL" --user-name="$ORO_USER_NAME"
         set +x
     fi
     # if [[ "X$ORO_LANGUAGE" != "X" && "X$ORO_FORMATTING_CODE" != "X" ]]; then
     #     _note "Update language $ORO_LANGUAGE and formating code $ORO_FORMATTING_CODE"
-    #     set -x
+    #     [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     #     php "$APP_FOLDER/bin/console" oro:localization:update --formatting-code="$ORO_FORMATTING_CODE" --language="$ORO_LANGUAGE" || :
     #     php "$APP_FOLDER/bin/console" oro:translation:update --all || :
     #     set +x
     # fi
     if [[ "X$ORO_APP_COUNTRY" != "X" ]]; then
         _note "Update country $ORO_APP_COUNTRY"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.country "$ORO_APP_COUNTRY" || :
         set +x
     fi
     if [[ "X$ORO_APP_TIMEZONE" != "X" ]]; then
         _note "Update timezone $ORO_APP_TIMEZONE"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.timezone "$ORO_APP_TIMEZONE" || :
         set +x
     fi
     if [[ "X$ORO_APP_TEMPERATURE_UNIT" != "X" ]]; then
         _note "Update temperature_unit $ORO_APP_TEMPERATURE_UNIT"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.temperature_unit "$ORO_APP_TEMPERATURE_UNIT" || :
         set +x
     fi
     if [[ "X$ORO_APP_WIND_SPEED_UNIT" != "X" ]]; then
         _note "Update wind_speed_unit $ORO_APP_WIND_SPEED_UNIT"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.wind_speed_unit "$ORO_APP_WIND_SPEED_UNIT" || :
         set +x
     fi
     if [[ "X$ORO_APP_CURRENCY" != "X" ]]; then
         _note "Update currency $ORO_APP_CURRENCY"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_currency.default_currency "$ORO_APP_CURRENCY" || :
         set +x
     fi
