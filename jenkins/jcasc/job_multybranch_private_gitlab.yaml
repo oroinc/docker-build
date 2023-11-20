@@ -1,6 +1,6 @@
 jobs:
   - script: >
-      multibranchPipelineJob("multibranch_pipeline") {
+      multibranchPipelineJob("gitlab_multibranch_pipeline") {
         branchSources {
           branchSource {
             source {
@@ -24,11 +24,10 @@ jobs:
                     // Determines how merge requests are discovered: Merging the merge request with the current target branch revision Discover each merge request once with the discovered revision corresponding to the result of merging with the current revision of the target branch The current merge request revision Discover each merge request once with the discovered revision corresponding to the merge request head revision without merging Both the current merge request revision and the merge request merged with the current target branch revision Discover each merge request twice.
                     strategyId(1)
                   }
-                  headWildcardFilter {
-                      // Space-separated list of name patterns to consider.
-                      includes("main master MR-*")
-                      // Space-separated list of name patterns to ignore even if matched by the includes list.
-                      excludes('')
+                  // Discovers tags on the repository.                  
+                  gitLabTagDiscovery()
+                  headRegexFilter {
+                      regex('main|MR-.*|^[0-9]*\\.[0-9\\.]*')
                   }
                   gitlabSkipNotifications()
                 }

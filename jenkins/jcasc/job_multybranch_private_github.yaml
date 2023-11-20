@@ -1,0 +1,52 @@
+jobs:
+  - script: >
+      multibranchPipelineJob("${GITHUB_PROJECT_PATH}") {
+        branchSources {
+          branchSource {
+            source {
+              github {
+                repoOwner("${GITHUB_PROJECT_OWNER}")
+                repository("${GITHUB_PROJECT_PATH}")
+                repositoryUrl("https://github.com/${GITHUB_PROJECT_OWNER}/${GITHUB_PROJECT_PATH}")
+                credentialsId("jenkins-oroinc-app")
+                configuredByUrl(true)
+                traits {
+                  // Discovers branches on the repository.
+                  gitHubBranchDiscovery {
+                    // Determines which branches are discovered.
+                    strategyId(1)
+                  }
+                  // Discovers pull requests where the origin project is the same as the target project.
+                  gitHubPullRequestDiscovery {
+                    strategyId(1)
+                  }
+                  // Discovers tags on the repository.                  
+                  gitHubTagDiscovery()
+                  headRegexFilter {
+                      regex('master|docker|PR-.*|^[0-9]*\\.[0-9\\.]*')
+                  }
+                  githubSkipNotifications()
+                }
+                strategy {
+                  allBranchesSame {
+                    props {
+                      // Allows you to control which branches should be built automatically and which could be only scheduled manually.
+                      suppressAutomaticTriggering {
+                        // Defines a regular expression of branch names which will be triggered automatically, for example (?!
+                        triggeredBranchesRegex('^$')
+                        // Determines events for which branches with matched names should not be triggered automatically.
+                        strategy('NONE')
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(30)
+          }
+        }
+      }

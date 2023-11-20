@@ -57,7 +57,10 @@ Before launching Jenkins, follow these configuration steps:
 
 ### Project Configuration
 
-@slava - please describe required changes in `.env-build` and `Jenkinsfile`.
+The following files are responsible for the project configuration:
+ 1. [`.env-build`](https://github.com/oroinc/orocommerce-application/blob/master/.env-build) - contains project-specific variables. You can read more [details](https://github.com/oroinc/docker-build/tree/master/docker-compose#configuration)
+ 1. [`Jenkinsfile`](https://github.com/oroinc/orocommerce-application/blob/master/Jenkinsfile) - Pipeline Definition: Jenkinsfile define the entire CI/CD pipeline as code
+ 1. [`.rsync-exclude-prod`](https://github.com/oroinc/orocommerce-application/blob/master/.rsync-exclude-prod) and [`.rsync-exclude-test`](https://github.com/oroinc/orocommerce-application/blob/master/.rsync-exclude-test) - rsync exclude rules used for create docker application runtime and test images.
 
 ## Usage
 

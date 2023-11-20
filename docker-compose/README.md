@@ -159,4 +159,19 @@ After running the tests, if you need logs, junit reports, or other artifacts, yo
 docker ps -a --format '{{.Names}}' -f "name=.*_.*-behat-.*" | xargs -r -I {} bash -c "docker cp {}:/var/www/oro//var/logs ."
 ```
 
-### Get statistics from mysql database
+
+### Enable blackfire service
+
+To enable the blackfire debugger:
+ 
+ - Edit the `.env` file and set variables:
+```
+BLACKFIRE_SERVER_ID=XXXXXXXXX
+BLACKFIRE_SERVER_TOKEN=XXXXXXXXXXX
+```
+ 
+ - Start the `blackfire` service:
+```
+docker compose up application
+docker compose up -d blackfire
+```

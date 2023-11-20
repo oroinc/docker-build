@@ -37,9 +37,9 @@ jobs:
             scm {
               git {
                 remote {
-                  url('https://github.com/dubrsl/orocommerce-application.git')
+                  url('https://github.com/oroinc/orocommerce-application')
                 }
-                branch('refs/tags/5.1.0')
+                branch('5.1')
               }
             }
             lightweight()

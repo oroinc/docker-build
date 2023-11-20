@@ -115,6 +115,14 @@ warmup_cache() {
     set +x
 }
 
+routing_dump() {
+    _note "Routing and translations dump"
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+    php "$APP_FOLDER/bin/console" oro:translation:dump || _error "Can't translation dump"
+    php "$APP_FOLDER/bin/console" fos:js-routing:dump || _error "Can't routing dump"
+    set +x
+}
+
 clear_cache() {
     local REDIS_CONNECT REDIS_PROTOCOL i
     _note "Clear cache for $ORO_ENV environment"
@@ -323,6 +331,7 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     fi
     warmup_cache
     reindex
+    routing_dump
     exit 0
 elif [[ "$1" == 'restore-pg' ]]; then
     restore_pg_db '/oro_init/db.sql'
