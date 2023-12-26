@@ -3,6 +3,7 @@
 ARG ORO_BASELINE_VERSION=master-latest
 ARG ORO_IMAGE_FROM=docker.io/oroinc/test
 
+FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
 
 ARG ORO_IMAGE_FROM
@@ -30,5 +31,6 @@ RUN --mount=type=bind,target=/source \
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm && \
     chown -R "$ORO_USER":"$ORO_USER_RUNTIME" /var/lib/php/{opcache,session,wsdlcache}
 
+COPY --from=mkcert /usr/local/bin/mkcert /usr/local/bin/mkcert
 WORKDIR $ORO_APP_FOLDER
 VOLUME "$ORO_APP_FOLDER/var/cache"

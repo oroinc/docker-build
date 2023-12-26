@@ -34,6 +34,11 @@ The file contains several sections of variables:
 2. Variables used to configure the application.
 3. Variables used to configure a specific service: database, Elasticsearch, RMQ, Redis, mail, etc.
 
+### SSL certificate
+For SSL, a special web service `proxy-behat` or `proxy` is used. Its image is `oroinc/nginx-proxy`.
+You can use your own key and certificate. To do this, they must be located along the paths `/etc/nginx/certs/webserver.crt` and `/etc/nginx/certs/webserver.key` respectively.
+If you do not have a certificate, a self-signed one will be generated for testing.
+It is possible to use a CAROOT certificate which will be used to sign a self-signed certificate. Uncomment variable CAROOT in `.env` file and point it to folder where CAROOT locate. More details can be found at https://web.dev/articles/how-to-use-local-https.
 
 ## Actions
 
