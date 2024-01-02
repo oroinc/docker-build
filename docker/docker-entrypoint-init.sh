@@ -273,6 +273,20 @@ entity_extend_update() {
     _note "Finish operation"
 }
 
+install_system_caroot() {
+    # Install CAROOT certificate to Firefox and/or Chrome/Chromium trust store
+    if [[ -f "$CAROOT/rootCA-key.pem" && -f "$CAROOT/rootCA.pem" ]]; then
+        _note "Copy user CAROOT certificates to volume"
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+        sudo mkdir -p "$ORO_CAROOT"
+        sudo cp -fv "$CAROOT"/* "$ORO_CAROOT"/
+        set +x
+    fi
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+    sudo bash -c "CAROOT='$ORO_CAROOT' TRUST_STORES=system /usr/local/bin/mkcert -install"
+    set +x
+}
+
 APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
 if [ "${1:0:1}" = '-' ]; then
     set -- bash "$@"
@@ -323,6 +337,10 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     fi
     warmup_cache
     reindex
+    routing_dump
+    if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' ]]; then
+        install_system_caroot
+    fi
     exit 0
 elif [[ "$1" == 'restore-pg' ]]; then
     restore_pg_db '/oro_init/db.sql'

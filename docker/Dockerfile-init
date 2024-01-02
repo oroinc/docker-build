@@ -3,14 +3,27 @@
 ARG ORO_IMAGE_FROM
 ARG ORO_IMAGE_TAG
 
+FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
 
 ARG ORO_DB_VERSION=15
+ARG ORO_IMAGE_TAG
+ARG ORO_IMAGE_FROM
 
-LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}"
+LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}" \
+    com.oroinc.orocloud.app="/var/www/oro" \
+    com.oroinc.orocloud.image_type="init" \
+    org.opencontainers.image.title="Application init image" \
+    org.opencontainers.image.description="Application init image. Used for init DB and storage. Set parameters in application. Update application" \
+    org.opencontainers.image.authors="ORO Inc." \
+    org.opencontainers.image.vendor="ORO Inc." \
+    org.opencontainers.image.url="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.documentation="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
 
-RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
-    sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/orocloud-pgdg${ORO_DB_VERSION}.repo && \
+RUN gpasswd -a $ORO_USER_RUNTIME wheel && \
+    sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
+    sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/orocloud-pgdg${ORO_DB_VERSION}.repo && \    
     microdnf module disable postgresql && \
     microdnf module enable redis:remi-7.0 && \
     microdnf --setopt=install_weak_deps=0 --best --nodocs install \
@@ -20,6 +33,7 @@ RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
     rsync bzip2 unzip time glibc-langpack-en inotify-tools sudo && \
     microdnf clean all
 
+COPY --from=mkcert /usr/local/bin/mkcert /usr/local/bin/mkcert
 COPY docker-entrypoint-init.sh /usr/local/bin/docker-entrypoint.sh
 COPY oro_sudo.conf /etc/sudoers.d/orovariables
 ENTRYPOINT [ "docker-entrypoint.sh" ]
