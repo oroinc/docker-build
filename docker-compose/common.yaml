@@ -31,11 +31,14 @@ services:
   web:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: nginx
+    user: nginx
     env_file: .env
     restart: unless-stopped
     ports:
       - 80:80
     depends_on:
+      "init":
+        condition: service_completed_successfully
       "php-fpm-app":
         condition: service_healthy
       "ws":
@@ -43,6 +46,8 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - etc_nginx:/etc/nginx
+      - public:/var/www/oro/public
     networks:
       default:
         aliases:
@@ -52,9 +57,12 @@ services:
   web-behat:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: nginx
+    user: nginx
     env_file: .env
     restart: unless-stopped
     depends_on:
+      "init":
+        condition: service_completed_successfully
       "php-fpm-app":
         condition: service_healthy
       "ws":
@@ -62,6 +70,9 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - etc_nginx:/etc/nginx
+      - public:/var/www/oro/public
+
     networks:
       default:
         aliases:
@@ -72,18 +83,23 @@ services:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: php-fpm
     env_file: .env
+    restart: unless-stopped
+    user: ${ORO_USER_RUNTIME:-www-data}
     healthcheck:
       test: "php-fpm-healthcheck"
       interval: 5s
       timeout: 30s
       start_period: 120s
-    restart: unless-stopped
     depends_on:
       <<: *default-depends_on
+      "init":
+        condition: service_completed_successfully    
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
+      - run_php_fpm:/run/php-fpm
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -98,6 +114,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -112,6 +129,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache:ro
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   cron:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -129,6 +147,7 @@ services:
       - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
@@ -146,7 +165,7 @@ services:
       - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
+      - public:/var/www/oro/public
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -201,6 +220,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -361,6 +381,16 @@ services:
       "file-storage":
         condition: service_started
 
+  init:
+    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    command: init
+    env_file: .env
+    volumes:
+      - etc_nginx:/etc/nginx
+      - run_php_fpm:/run/php-fpm
+      - public:/var/www/oro/public
+      - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+
   restore:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore
@@ -393,7 +423,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
+      - public:/var/www/oro/public
 
   update-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
@@ -407,6 +437,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
@@ -418,6 +449,7 @@ services:
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - public:/var/www/oro/public
 
   db:
     image: docker.io/oroinc/pgsql:${ORO_PG_VER}
@@ -512,3 +544,6 @@ volumes:
   cache: {}
   multihost_operation_folder: {}
   maintenance_folder: {}
+  etc_nginx: {}
+  run_php_fpm: {}
+  public: {}
