@@ -389,7 +389,6 @@ services:
       - etc_nginx:/etc/nginx
       - run_php_fpm:/run/php-fpm
       - public:/var/www/oro/public
-      - ./../../baseline/runtime/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
 
   restore:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
