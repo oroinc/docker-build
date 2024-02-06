@@ -102,7 +102,7 @@ done
 
 run_composer() {
     # Try to pull before manual, because --pull always fail if image not exist remotely https://github.com/moby/moby/issues/36794
-    docker image ls  | expand | tr -s ' ' | grep -qw "$ORO_DOCKER_PROJECT/builder $BASELINE_VERSION" || docker image pull --quiet "$ORO_DOCKER_PROJECT/builder:$BASELINE_VERSION"
+    docker image pull --quiet "$ORO_DOCKER_PROJECT/builder:$BASELINE_VERSION" ||:
     # Run composer
     set -x
     time docker run --rm --security-opt label=disable --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" -v "$REPO_PATH":"$REPO_PATH" -v "$APP_SRC":"$APP_SRC" -w "$APP_SRC" -e ORO_DB_VERSION $COMPOSER_VARIABLES "$ORO_DOCKER_PROJECT/builder:$BASELINE_VERSION" bash -c "set -x && composer -vvv --ansi --no-interaction --working-dir='$APP_SRC' $1" || {
