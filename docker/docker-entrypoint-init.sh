@@ -407,8 +407,12 @@ elif [[ "$1" == 'operator' ]]; then
     exit 0
 elif [[ "$1" == 'update' ]]; then
     clear_cache
+    _note 'Run console oro:platform:update'
+    php "$APP_FOLDER/bin/console" oro:platform:update
     _note 'Run console oro:platform:update --force'
     php "$APP_FOLDER/bin/console" oro:platform:update --force
+    clear_cache
+    warmup_cache
     exit 0
 fi
 
