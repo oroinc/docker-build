@@ -90,7 +90,7 @@ services:
 
   ws:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
+    command: websocket
     env_file:
       - .env
       - .env-orocommerce-application
@@ -108,7 +108,7 @@ services:
 
   consumer:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
+    command: consumer
     env_file:
       - .env
       - .env-orocommerce-application

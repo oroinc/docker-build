@@ -2,8 +2,10 @@
 
 ARG ORO_IMAGE_TAG
 ARG ORO_IMAGE_FROM
+ARG ORO_IMAGE_BUILDER=oroinc/builder
 
 FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
+FROM ${ORO_IMAGE_BUILDER}:${ORO_BASELINE_VERSION} as composer
 FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
 
 ARG ORO_DB_VERSION=15
@@ -34,6 +36,7 @@ RUN gpasswd -a $ORO_USER_RUNTIME wheel && \
     microdnf clean all
 
 COPY --from=mkcert /usr/local/bin/mkcert /usr/local/bin/mkcert
+COPY --from=composer /usr/local/bin/composer /usr/local/bin/composer
 COPY docker-entrypoint-init.sh /usr/local/bin/docker-entrypoint.sh
 COPY oro_sudo.conf /etc/sudoers.d/orovariables
 ENTRYPOINT [ "docker-entrypoint.sh" ]
