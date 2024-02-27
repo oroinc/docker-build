@@ -395,8 +395,8 @@ services:
       - private_storage:/var/www/oro/var/data
 
   update:
-    image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
-    command: update
+    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    command: scripts upgrade:full:reindex
     user: $ORO_USER_RUNTIME
     env_file: .env
     depends_on:
@@ -408,8 +408,8 @@ services:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   update-test:
-    image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
-    command: update
+    image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    command: scripts upgrade:full:reindex
     user: $ORO_USER_RUNTIME
     env_file: .env
     environment:

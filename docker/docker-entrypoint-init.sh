@@ -414,6 +414,30 @@ elif [[ "$1" == 'update' ]]; then
     clear_cache
     warmup_cache
     exit 0
+elif [[ "$1" == 'script' ]]; then
+    _note "$@"
+    shift
+    [[ $ORO_CLI_LOGFILE ]] && exec > >(tee -a "$ORO_CLI_LOGFILE")
+    set -- composer "$@"
+elif [[ "$1" == 'install' ]]; then
+    _note "$@"
+    shift
+    [[ $ORO_CLI_LOGFILE ]] && exec > >(tee -a "$ORO_CLI_LOGFILE")
+    set -- php /var/www/oro/bin/console oro:install \
+        --no-interaction \
+        --no-ansi \
+        --timeout=0 \
+        --user-name="$ORO_USER_NAME" \
+        --user-email="$ORO_USER_EMAIL" \
+        --user-firstname="$ORO_USER_FIRSTNAME" \
+        --user-lastname="$ORO_USER_LASTNAME" \
+        --user-password="$ORO_USER_PASSWORD" \
+        --sample-data="$ORO_SAMPLE_DATA" \
+        --organization-name="$ORO_ORGANIZATION_NAME" \
+        --language="$ORO_LANGUAGE" \
+        --formatting-code="$ORO_FORMATTING_CODE" \
+        --application-url="$ORO_APP_URL" \
+        "$@"
 fi
 
 exec "$@"

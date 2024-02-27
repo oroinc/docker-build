@@ -2,11 +2,13 @@
 
 ARG ORO_IMAGE_TAG
 ARG ORO_IMAGE_FROM
-ARG ORO_IMAGE_BUILDER=oroinc/builder
+ARG ORO_DOCKER_PROJECT
+ARG ORO_IMAGE_BUILDER=${ORO_DOCKER_PROJECT:-oroinc}/builder
+ARG ORO_BASELINE_VERSION
 
 FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
-FROM ${ORO_IMAGE_BUILDER}:${ORO_BASELINE_VERSION} as composer
-FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} as data-tools
+FROM ${ORO_IMAGE_BUILDER}:${ORO_BASELINE_VERSION} AS composer
+FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} AS data-tools
 
 ARG ORO_DB_VERSION=15
 ARG ORO_IMAGE_TAG
@@ -41,7 +43,7 @@ COPY docker-entrypoint-init.sh /usr/local/bin/docker-entrypoint.sh
 COPY oro_sudo.conf /etc/sudoers.d/orovariables
 ENTRYPOINT [ "docker-entrypoint.sh" ]
 
-FROM data-tools as backup
+FROM data-tools AS backup
 ARG ORO_DB_HOST
 ARG ORO_DB_PORT
 ARG ORO_DB_NAME
@@ -57,7 +59,7 @@ ARG ORO_MONGO_PASSWORD
 ARG CACHEBUST=1
 RUN echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
 
-FROM data-tools as backup-files
+FROM data-tools AS backup-files
 ARG ORO_DB_HOST
 ARG ORO_DB_PORT
 ARG ORO_DB_NAME

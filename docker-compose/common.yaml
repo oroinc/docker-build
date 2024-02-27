@@ -319,6 +319,7 @@ services:
       network: host
       args:
         ORO_BASELINE_VERSION:
+        ORO_DOCKER_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -356,6 +357,7 @@ services:
       network: host
       args:
         ORO_BASELINE_VERSION:
+        ORO_DOCKER_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE_TEST
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -416,7 +418,7 @@ services:
 
   update:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
-    command: update
+    command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
     env_file: .env
     depends_on:
@@ -428,7 +430,7 @@ services:
 
   update-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
-    command: update
+    command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
     env_file: .env
     environment:
