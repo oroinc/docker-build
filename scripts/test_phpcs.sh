@@ -31,7 +31,7 @@ FILE_DIFF               diff file name with list of changed files. Without it or
 
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='6.0-latest'
 APP_SRC="$PWD"
 ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
 WORKDIR=''

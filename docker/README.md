@@ -19,7 +19,7 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application:master-latest -f ../../docker-build/docker/Dockerfile .
+docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application:6.0-latest -f ../../docker-build/docker/Dockerfile .
 ```
 
 ### Application test image
@@ -37,7 +37,7 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application-test:master-latest -f ../../docker/image/application/Dockerfile-test .
+docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application-test:6.0-latest -f ../../docker/image/application/Dockerfile-test .
 ```
 
 ### Application init images

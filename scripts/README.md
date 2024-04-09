@@ -42,7 +42,7 @@ For ODP applications, specify the database version: `ORO_DB_VERSION=15`
 
 
 ```bash
-ORO_DB_VERSION=15 COMPOSER_PROCESS_TIMEOUT=600 COMPOSER_MIRROR_PATH_REPOS=1 ../../docker-build/scripts/composer.sh  -b master-latest -r "../.."
+ORO_DB_VERSION=15 COMPOSER_PROCESS_TIMEOUT=600 COMPOSER_MIRROR_PATH_REPOS=1 ../../docker-build/scripts/composer.sh  -b 6.0-latest -r "../.."
 ```
 
 **Note:** After installing the composer bundles, you can run other scripts that do not require the installation of the application.
@@ -50,21 +50,21 @@ ORO_DB_VERSION=15 COMPOSER_PROCESS_TIMEOUT=600 COMPOSER_MIRROR_PATH_REPOS=1 ../.
 ### `test_unit.sh`
 This script starts phpunit. By default, the script runs all tests it finds in the `Tests/Unit` folders in parallel. Failed tests are displayed at the end after all other tests.
 ```bash
-../../docker-build/scripts/test_unit.sh -b master-latest
+../../docker-build/scripts/test_unit.sh -b 6.0-latest
 ```
 You can check tests or specify other options for phpunit after the script:
 ```bash
-../../docker-build/scripts/test_unit.sh -b master-latest -- vendor/oro/redis-config/Tests/Unit/Service/Setup
+../../docker-build/scripts/test_unit.sh -b 6.0-latest -- vendor/oro/redis-config/Tests/Unit/Service/Setup
 ```
 
 ### `test_php-cs-fixer.sh`, `test_phpcs.sh`, `test_phpmd.sh`
 These are scripts to run php-cs-fixer or phpcs or phpmd. If you do not specify a file (by setting it in variables DIR_DIFF and FILE_DIFF) with a list of files, then it checks all found php files. Otherwise, it only checks the files from the list.
 ```bash
-../../docker-build/scripts/test_php-cs-fixer.sh -b master-latest
+../../docker-build/scripts/test_php-cs-fixer.sh -b 6.0-latest
 ```
 or with diff file:
 ```bash
-DIR_DIFF=. FILE_DIFF=diff_file.txt ../../docker-build/scripts/test_php-cs-fixer.sh -b master-latest
+DIR_DIFF=. FILE_DIFF=diff_file.txt ../../docker-build/scripts/test_php-cs-fixer.sh -b 6.0-latest
 ```
 **Note:** The results of tests are in docker instance. You can copy it to host from instance.
 

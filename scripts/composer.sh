@@ -32,7 +32,7 @@ Example: COMPOSER=dev.json COMPOSER_AUTH='\"http-basic\": {\"github.com\": {\"us
 
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='6.0-latest'
 ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
 # path to application source code. Can be defined with "-s" option
 APP_SRC="$PWD"

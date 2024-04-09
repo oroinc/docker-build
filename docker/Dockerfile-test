@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG ORO_BASELINE_VERSION=master-latest
+ARG ORO_BASELINE_VERSION=6.0-latest
 ARG ORO_IMAGE_FROM=docker.io/oroinc/test
 
 FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert

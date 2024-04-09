@@ -30,7 +30,7 @@ ORO_TESTS_PATH         folder for search unit tests. Default is vendor/oro
 
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='6.0-latest'
 APP_SRC="$PWD"
 ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
 ORO_TESTS_PATH="${ORO_TESTS_PATH:-vendor/oro}"
