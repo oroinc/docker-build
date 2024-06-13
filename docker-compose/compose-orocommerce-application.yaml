@@ -317,6 +317,8 @@ services:
       target: backup-files
       network: host
       args:
+        ORO_BASELINE_VERSION:
+        ORO_DOCKER_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -326,6 +328,7 @@ services:
         ORO_DB_PASSWORD:
         ORO_DB_ROOT_USER:
         ORO_DB_ROOT_PASSWORD:
+        CACHEBUST:
       tags:
         - $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
       labels:
@@ -347,7 +350,9 @@ services:
       target: backup-files
       network: host
       args:
-        ORO_IMAGE_FROM: $ORO_IMAGE
+        ORO_BASELINE_VERSION:
+        ORO_DOCKER_PROJECT:
+        ORO_IMAGE_FROM: $ORO_IMAGE_TEST
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
         ORO_DB_PORT:
@@ -356,6 +361,7 @@ services:
         ORO_DB_PASSWORD:
         ORO_DB_ROOT_USER:
         ORO_DB_ROOT_PASSWORD:
+        CACHEBUST:
       tags:
         - $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
       labels:
