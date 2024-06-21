@@ -101,7 +101,7 @@ run() {
     if [[ -e "$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml" && -e "$LOGS/$FILE_DIFF" ]]; then
         STANDARD="$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml"
     else
-        STANDARD="PSR2"
+        STANDARD="${ORO_CS_STANDARD-PSR2}"
     fi
     set -x
     docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.cs2.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/phpcs' {} -p --encoding=utf-8 --extensions=php --standard='$STANDARD' --report=checkstyle --report-file='$APP_SRC/var/logs/static_analysis/phpcs_{#}.xml'\"" || {
