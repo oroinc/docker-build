@@ -58,6 +58,7 @@ ARG ORO_MONGO_PASSWORD
 # use CACHEBUST for disable cache for only one RUN
 ARG CACHEBUST=1
 RUN echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
+VOLUME "/var/www/oro"
 
 FROM data-tools AS backup-files
 ARG ORO_DB_HOST
@@ -72,3 +73,4 @@ ENV ORO_BACKUP_DATA=$ORO_BACKUP_DATA
 # use CACHEBUST for disable cache for only one RUN
 ARG CACHEBUST=1
 RUN --mount=type=bind,target=$ORO_BACKUP_DATA echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
+VOLUME "/var/www/oro"

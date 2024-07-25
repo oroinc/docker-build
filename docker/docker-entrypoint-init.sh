@@ -295,6 +295,15 @@ install_system_caroot() {
     set +x
 }
 
+set_files_owner() {
+    if [[ "X$ORO_DOCKER_FOLDER_MODE" == 'Xdev' ]]; then
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+        find "$APP_FOLDER" -user "$ORO_USER_RUNTIME" -group "$ORO_USER_RUNTIME" -print0 | sudo xargs -r -0 chmod g+w
+        find "$APP_FOLDER" -print0 | sudo xargs -r -0 chown "$ORO_USER"
+        set +x
+    fi
+}
+
 APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
 if [ "${1:0:1}" = '-' ]; then
     set -- bash "$@"
@@ -349,6 +358,7 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' ]]; then
         install_system_caroot
     fi
+    set_files_owner
     exit 0
 elif [[ "$1" == 'restore-pg' ]]; then
     restore_pg_db '/oro_init/db.sql'
@@ -384,6 +394,9 @@ elif [[ "$1" == 'update-settiings' ]]; then
     exit 0
 elif [[ "$1" == 'generate-oauth-keys' ]]; then
     generate_OAuth_keys
+    exit 0
+elif [[ "$1" == 'set-owner' ]]; then
+    set_files_owner
     exit 0
 elif [[ "$1" == 'operator' ]]; then
     _note 'Run operator service'

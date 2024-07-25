@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG ORO_BASELINE_VERSION=master-latest
-ARG ORO_IMAGE_FROM=docker.io/oroinc/runtime
+ARG ORO_IMAGE_FROM=harborio.oro.cloud/public-dev-ci/init
 
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
 
@@ -13,8 +13,9 @@ ENV ORO_APP_FOLDER=/var/www/oro \
     ORO_USER_RUNTIME=www-data
 
 LABEL com.oroinc.orocloud.app="/var/www/oro" \
-    org.opencontainers.image.title="Application runtime image" \
-    org.opencontainers.image.description="Application runtime image. Used for run web server, php-fpm, ws, consumer and other services" \
+    com.oroinc.orocloud.image_type="init-app" \
+    org.opencontainers.image.title="Application init image" \
+    org.opencontainers.image.description="Application init image. Used for configure web server, php-fpm services" \
     org.opencontainers.image.authors="ORO Inc." \
     org.opencontainers.image.vendor="ORO Inc." \
     org.opencontainers.image.url="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
@@ -22,13 +23,13 @@ LABEL com.oroinc.orocloud.app="/var/www/oro" \
     org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
 
 RUN --mount=type=bind,target=/source \
-    groupadd --system --gid 2001 $ORO_USER_RUNTIME && useradd --home-dir $ORO_APP_FOLDER/var --uid 2002 --gid $ORO_USER_RUNTIME --no-create-home --system $ORO_USER_RUNTIME && \
-    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chown="$ORO_USER":"$ORO_USER_RUNTIME" /source/ $ORO_APP_FOLDER && \
-    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance}; \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance} 2>/dev/null; \
+    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER && \
+    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost_operation}; \    
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost_operation} 2>/dev/null; \
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null; \
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm && \
     chown -R "$ORO_USER":"$ORO_USER_RUNTIME" /var/lib/php/{opcache,session,wsdlcache}
 
 WORKDIR $ORO_APP_FOLDER
+VOLUME "/var/www/oro"
 VOLUME "$ORO_APP_FOLDER/var/cache"

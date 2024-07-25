@@ -33,7 +33,7 @@ Example: COMPOSER=dev.json COMPOSER_AUTH='\"http-basic\": {\"github.com\": {\"us
 }
 
 BASELINE_VERSION='master-latest'
-ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
+ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-harborio.oro.cloud/public-dev-ci}
 # path to application source code. Can be defined with "-s" option
 APP_SRC="$PWD"
 # path to composer repositories on local file system. Can be defined with "-r" option

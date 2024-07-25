@@ -80,7 +80,7 @@ docker compose up restore-test
 
 ### Run application only web interface
 ```
-docker compose up -d web
+docker compose up -d proxy
 ```
 
 ### Run application with consumer and websocket services
@@ -96,6 +96,44 @@ Edit ORO_IMAGE_TAG variable in `.env`. Set new tag. Then run:
 docker compose stop web php-fpm-app consumer ws cron
 docker compose up -V update
 docker compose up application
+```
+
+### Use local folder for development
+When dealing with errors, it is important to be able to quickly edit the code and test it. Editing code in a Docker instance is inconvenient because the instances are recreated every time they are launched. To address this, a special mode (ORO_DOCKER_FOLDER_MODE=dev) is available. When activated, the code is copied to folders on the host and used from there. The file owner is set to the current user, giving developers the ability to conveniently edit the code and run tests immediately.
+
+To enable this mode:
+ - Edit the `.env` file and set variables:
+```
+ORO_DOCKER_FOLDER_MODE=dev
+ORO_USER=1000
+ORO_DOCKER_FOLDER_PATH=/home/user/tmp
+```
+Where 1000 is the user ID output from the`id -u` command.
+
+ - Create two folders, `$ORO_DOCKER_FOLDER_PATH/oro_app` and `$ORO_DOCKER_FOLDER_PATH/oro_test`, into which the application will be copied. Two folders are necessary because there are two types of images used to run behat: one requires the `oro_app` folder for the application runtime image, and the other requires the `oro_test` folder for the application test images. For more details on the types of images, please refer to the `docker-build/docker/README.md` file.
+
+> **NOTE:** In order for Docker to automatically copy the code into the folder at startup, the folders must be completely empty. If the folders are not empty, copying does not occur.
+ 
+```
+mkdir -p $ORO_DOCKER_FOLDER_PATH/oro_{app,test}
+```
+
+> **NOTE:** As a result of the operation of the application and tests, some files are created where the owner is the user `www-data`. To remove such files from the host, you must use `sudo` or delete as `root`.
+
+### Enable blackfire service
+
+To enable the blackfire debugger:
+ 
+ - Edit the `.env` file and set variables:
+```
+BLACKFIRE_SERVER_ID=XXXXXXXXX
+BLACKFIRE_SERVER_TOKEN=XXXXXXXXXXX
+```
+ 
+ - Start the `blackfire` service:
+```
+docker compose up application
+docker compose up -d blackfire
 ```
 
 ### Run functional test
@@ -159,24 +197,12 @@ If you don't have a Mysql database or don't want to use the parallel test execut
 ORO_BEHAT_ARGS=' ' docker compose up behat
 ```
 
-After running the tests, if you need logs, junit reports, or other artifacts, you must copy them from the instance to the host:
+To run only one test:
+```
+ORO_BEHAT_ARGS='src/Tests/Behat/Features/demo_smoke_test.feature' docker compose up behat
+```
+
+After running the tests, if you need logs, junit reports, or other artifacts, you must copy them from the instance to the host (if ORO_DOCKER_FOLDER_MODE=dev is not set up):
 ```
 docker ps -a --format '{{.Names}}' -f "name=.*_.*-behat-.*" | xargs -r -I {} bash -c "docker cp {}:/var/www/oro//var/logs ."
-```
-
-
-### Enable blackfire service
-
-To enable the blackfire debugger:
- 
- - Edit the `.env` file and set variables:
-```
-BLACKFIRE_SERVER_ID=XXXXXXXXX
-BLACKFIRE_SERVER_TOKEN=XXXXXXXXXXX
-```
- 
- - Start the `blackfire` service:
-```
-docker compose up application
-docker compose up -d blackfire
 ```

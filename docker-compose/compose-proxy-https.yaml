@@ -1,14 +1,5 @@
-version: "3.9"
-
 services:
   proxy:
-    image: docker.io/oroinc/nginx-proxy:latest
-    command: nginx
-    env_file: .env
-    restart: unless-stopped
-    depends_on:
-      "web-behat":
-        condition: service_started
     environment:
       CAROOT: ${CAROOT-$ORO_CAROOT}
     ports:
@@ -21,29 +12,12 @@ services:
       - etc-pki:/etc/pki
 
   proxy-behat:
-    image: docker.io/oroinc/nginx-proxy:latest
-    command: nginx
-    env_file: .env
-    restart: unless-stopped
-    depends_on:
-      "web-behat":
-        condition: service_started
     environment:
       CAROOT: $ORO_CAROOT
     volumes:
       - ssl-certs:/etc/nginx/certs
       - etc-pki:/etc/pki
-    networks:
-      default:
-        aliases:
-          - ${ORO_APP_DOMAIN}
-          - ${ORO_APP_ADDON_DOMAINS}
-  web:
-    networks:
-      default:
-        aliases:
-          - web
-
+  
   behat:
     environment:
       CAROOT: $ORO_CAROOT
@@ -61,9 +35,6 @@ services:
       - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   chrome:
-    depends_on:
-      "proxy-behat":
-        condition: service_started
     environment:
       CAROOT: $ORO_CAROOT
     volumes:
