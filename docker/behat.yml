@@ -1,0 +1,130 @@
+imports:
+- /var/www/oro/behat.yml.dist
+
+default: &default
+  extensions: &default_extensions
+    Oro\Bundle\TestFrameworkBundle\Behat\ServiceContainer\OroTestFrameworkExtension:
+      artifacts:
+        handlers:
+          local:
+            directory: "/var/www/oro/var/logs/behat"
+            base_url: "@BUILD_URL@artifact/@ARTIFACT_DIR@"
+            auto_clear: false
+    Behat\MinkExtension:
+      base_url: '@ORO_APP_DOMAIN@'
+      browser_name: chrome
+      sessions:
+        second_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--window-size=1920,1080"
+                                - "--start-maximized"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-dev-shm-usage"
+                                - "--disable-dbus"
+        first_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--window-size=1920,1080"
+                                - "--start-maximized"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-dev-shm-usage"
+                                - "--disable-dbus"
+        system_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--window-size=1920,1080"
+                                - "--start-maximized"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-dev-shm-usage"
+                                - "--disable-dbus"
+        375_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--window-size=375,640"
+                                - "--start-maximized"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-dev-shm-usage"
+                                - "--disable-dbus"
+        640_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--window-size=640,1100"
+                                - "--start-maximized"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-dev-shm-usage"
+                                - "--disable-dbus"
+        mobile_session:
+            oroSelenium2:
+                wd_host: 'http://chrome:4444'
+                capabilities:
+                    extra_capabilities:
+                        chromeOptions:
+                            args:
+                                - "--no-proxy-server"
+                                - "--no-sandbox"
+                                - "--dns-prefetch-disable"
+                                - "--no-first-run"
+                                - "--headless"
+                                - "--disable-gpu"
+                                - "--no-pings"
+                                - "--disable-renderer-backgrounding"
+                                - "--disable-extensions"
+                                - "--disable-dbus"
+                            mobileEmulation:
+                                deviceName: "iPhone 12 Pro"

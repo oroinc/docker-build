@@ -1,23 +1,40 @@
 services:
-  proxy:
-    environment:
-      CAROOT: ${CAROOT-$ORO_CAROOT}
+  waf:
     ports:
       - published: 80
-        target: 80
+        target: $ORO_NGINX_HTTP_PORT
       - published: 443
-        target: 443
+        target: $ORO_NGINX_HTTPS_PORT
+
+  waf-behat:
+    cap_add:
+      - NET_BIND_SERVICE
+    expose:
+      - $ORO_NGINX_HTTP_PORT
+      - $ORO_NGINX_HTTPS_PORT
+    healthcheck:
+      test: "curl -ILf ${ORO_APP_PROTOCOL}://${ORO_APP_DOMAIN}:${ORO_NGINX_HTTPS_PORT}/"
+      interval: 15s
+      timeout: 30s
+      start_period: 15s
     volumes:
-      - ssl-certs:/etc/nginx/certs
       - etc-pki:/etc/pki
 
-  proxy-behat:
+  waf-init:
+    command:
+      - -c
+      - |
+        sed -i 's/1024/0/g' /variables.schema.json
+        export ORO_GLOBAL_ROOT_CA_CERT=$(cat $$CAROOT/rootCA.pem)
+        export ORO_GLOBAL_ROOT_CA_KEY=$(cat $$CAROOT/rootCA-key.pem)
+        /docker-entrypoint.sh -m init
     environment:
       CAROOT: $ORO_CAROOT
     volumes:
-      - ssl-certs:/etc/nginx/certs
+      - ${CAROOT-/var/empty}:${CAROOT-/var/empty}
       - etc-pki:/etc/pki
-  
+      - ./config.rb:/config.rb
+
   behat:
     environment:
       CAROOT: $ORO_CAROOT
@@ -38,9 +55,7 @@ services:
     environment:
       CAROOT: $ORO_CAROOT
     volumes:
-      - ssl-certs:/etc/nginx/certs
       - etc-pki:/etc/pki
 
 volumes:
-  ssl-certs: {}
   etc-pki: {}

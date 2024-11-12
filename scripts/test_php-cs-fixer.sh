@@ -33,7 +33,7 @@ FILE_DIFF               diff file name with list of changed files. Without it or
 
 BASELINE_VERSION='master-latest'
 APP_SRC="$PWD"
-ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
+ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 WORKDIR=''
 BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"
 DIFF_PHP="diff_php-cs-fixer.txt"
@@ -64,7 +64,7 @@ run() {
     LOGS="$APP_SRC/var/logs"
     if [[ ! -e $HOME/.parallel/ignored_vars ]]; then
         mkdir -p "$HOME/.parallel"
-        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" parallel --record-env
+        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" parallel --record-env
     fi
     if [[ -e "$LOGS/$FILE_DIFF" ]]; then
         pushd "$WORKDIR" >/dev/null 2>&1 || {
@@ -100,7 +100,7 @@ run() {
     fi
     mkdir -p "$LOGS/static_analysis"
     set -x
-    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -e PHP_CS_FIXER_IGNORE_ENV -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.csfixer.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/php-cs-fixer' fix {} --verbose --dry-run --config='$APP_SRC/$BUILD_CONFIG/.php-cs-fixer.php' --format=checkstyle --diff 2> /dev/null | tee -a '$APP_SRC/var/logs/static_analysis/php-cs-fixer_{#}.xml' | grep 'file name=\|error severity='; [[ \\\${PIPESTATUS[0]} -eq 0 ]] || exit \\\${PIPESTATUS[0]}\"" || {
+    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -e PHP_CS_FIXER_IGNORE_ENV -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.csfixer.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/php-cs-fixer' fix {} --verbose --dry-run --config='$APP_SRC/$BUILD_CONFIG/.php-cs-fixer.php' --format=checkstyle --diff 2> /dev/null | tee -a '$APP_SRC/var/logs/static_analysis/php-cs-fixer_{#}.xml' | grep 'file name=\|error severity='; [[ \\\${PIPESTATUS[0]} -eq 0 ]] || exit \\\${PIPESTATUS[0]}\"" || {
         echo -e "${RED}ERROR to run php-cs-fixer${NC}"
         exit 1
     }

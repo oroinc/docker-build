@@ -1,7 +1,6 @@
-# syntax=docker/dockerfile:1
 
 ARG ORO_BASELINE_VERSION=master-latest
-ARG ORO_IMAGE_FROM=harborio.oro.cloud/public-dev-ci/init
+ARG ORO_IMAGE_FROM=us.gcr.io/oro-product-development/init
 
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
 
@@ -22,13 +21,15 @@ LABEL com.oroinc.orocloud.app="/var/www/oro" \
     org.opencontainers.image.documentation="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
     org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
 
-RUN --mount=type=bind,target=/source \
-    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER && \
-    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost_operation}; \    
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost_operation} 2>/dev/null; \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null; \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm && \
+RUN --mount=type=bind,target=/source <<EOR
+    set -ex
+    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER
+    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost}
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost} 2>/dev/null
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm
     chown -R "$ORO_USER":"$ORO_USER_RUNTIME" /var/lib/php/{opcache,session,wsdlcache}
+EOR
 
 WORKDIR $ORO_APP_FOLDER
 VOLUME "/var/www/oro"

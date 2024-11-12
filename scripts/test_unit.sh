@@ -32,7 +32,7 @@ ORO_TESTS_PATH         folder for search unit tests. Default is vendor/oro
 
 BASELINE_VERSION='master-latest'
 APP_SRC="$PWD"
-ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
+ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 ORO_TESTS_PATH="${ORO_TESTS_PATH:-vendor/oro}"
 ORO_TEST_SUTE_UNIT=${ORO_TEST_SUTE_UNIT-unit}
 UNIT_ARGS=''
@@ -54,7 +54,7 @@ run() {
     mkdir -p "$LOGS"
     if [[ ! -e $HOME/.parallel/ignored_vars ]]; then
         mkdir -p "$HOME/.parallel"
-        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" parallel --record-env
+        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" parallel --record-env
     fi
     if [[ "X$UNIT_ARGS" == "X" ]]; then
         :>"$LOGS/phpunit_errors.log"
@@ -68,7 +68,7 @@ run() {
             exit 1
         }
         set -x
-        docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$APP_SRC" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" bash -c "time parallel --compress --no-notice --gnu -k --lb --env _  --joblog '$APP_SRC/var/logs/parallel.unit.log' -a '$APP_SRC/var/logs/unitList.txt' \"export TMPDIR=\\\$(mktemp -d) && bin/phpunit --testsuite=$ORO_TEST_SUTE_UNIT --colors=always --cache-result-file='/tmp/.phpunit.result.cache' --log-junit='$APP_SRC/var/logs/junit/unit{#}.xml' {} >'$APP_SRC/var/logs/phpunit_output_{%}.log' 2>&1 ; [[ \\\${PIPESTATUS[0]} -eq 0 ]] && cat '$APP_SRC/var/logs/phpunit_output_{%}.log' || { cat '$APP_SRC/var/logs/phpunit_output_{%}.log' >> '$APP_SRC/var/logs/phpunit_errors.log' ; exit 1 ; } \"" || {
+        docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$APP_SRC" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "time parallel --compress --no-notice --gnu -k --lb --env _  --joblog '$APP_SRC/var/logs/parallel.unit.log' -a '$APP_SRC/var/logs/unitList.txt' \"export TMPDIR=\\\$(mktemp -d --tmpdir=/tmp unit.XXXXXXXXXXXXXXXXX) && bin/phpunit --testsuite=$ORO_TEST_SUTE_UNIT --colors=always --cache-result-file='/tmp/.phpunit.result.cache' --log-junit='$APP_SRC/var/logs/junit/unit{#}.xml' {} >'$APP_SRC/var/logs/phpunit_output_{%}.log' 2>&1 ; [[ \\\${PIPESTATUS[0]} -eq 0 ]] && cat '$APP_SRC/var/logs/phpunit_output_{%}.log' || { cat '$APP_SRC/var/logs/phpunit_output_{%}.log' >> '$APP_SRC/var/logs/phpunit_errors.log' ; exit 1 ; } \"" || {
             echo "=============Errors output =============="
             cat "$LOGS/phpunit_errors.log"
             rm -rf "$LOGS"/phpunit_output_*
@@ -78,7 +78,7 @@ run() {
         rm -rf "$LOGS"/phpunit_output_*
     else
         set -x
-        docker run --pull always --security-opt label=disable --rm --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$APP_SRC" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" bash -c "bin/phpunit --testsuite=$ORO_TEST_SUTE_UNIT --colors=always --cache-result-file='/tmp/.phpunit.result.cache' --log-junit='$APP_SRC/var/logs/junit/unit.xml' $UNIT_ARGS" || {
+        docker run --pull always --security-opt label=disable --rm --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$APP_SRC" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "bin/phpunit --testsuite=$ORO_TEST_SUTE_UNIT --colors=always --cache-result-file='/tmp/.phpunit.result.cache' --log-junit='$APP_SRC/var/logs/junit/unit.xml' $UNIT_ARGS" || {
             echo -e "${RED}ERROR to run phpunit${NC}"
             exit 1
         }

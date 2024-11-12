@@ -18,7 +18,7 @@ services:
     command: -- true
     env_file: .env
     depends_on:
-      "proxy":
+      "waf":
         condition: service_started
       "consumer":
         condition: service_started
@@ -29,31 +29,52 @@ services:
       "operator":
         condition: service_started
 
-  proxy:
-    image: docker.io/oroinc/nginx-proxy:latest
-    command: nginx
-    env_file: .env
+  waf:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    command: -m nginx
+    user: nginx
     restart: unless-stopped
     depends_on:
+      "waf-init":
+        condition: service_completed_successfully
       "web":
-        condition: service_started
+        condition: service_healthy
+    volumes:
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - nginx-waf:/opt/oro-nginx
     ports:
       - published: 80
-        target: 80
-
-  proxy-behat:
-    image: docker.io/oroinc/nginx-proxy:latest
-    command: nginx
-    env_file: .env
-    restart: unless-stopped
-    depends_on:
-      "web":
-        condition: service_started
+        target: $ORO_NGINX_HTTP_PORT
     networks:
       default:
         aliases:
           - ${ORO_APP_DOMAIN}
+          - ${ORO_APP_DOMAIN_B2C}
           - ${ORO_APP_ADDON_DOMAINS}
+          - ws
+
+  waf-behat:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    command: -m nginx
+    user: nginx
+    restart: unless-stopped
+    depends_on:
+      "waf-init":
+        condition: service_completed_successfully
+      "web":
+        condition: service_started
+    volumes:
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - nginx-waf:/opt/oro-nginx
+    expose:
+      - $ORO_NGINX_HTTP_PORT
+    networks:
+      default:
+        aliases:
+          - ${ORO_APP_DOMAIN}
+          - ${ORO_APP_DOMAIN_B2C}
+          - ${ORO_APP_ADDON_DOMAINS}
+          - ws
 
   web:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
@@ -61,6 +82,11 @@ services:
     user: $ORO_USER_RUNTIME
     env_file: .env
     restart: unless-stopped
+    healthcheck:
+      test: "curl -If http://127.0.0.1:${ORO_UPSTREAM_PORT}/"
+      interval: 15s
+      timeout: 30s
+      start_period: 15s
     depends_on:
       "web-init":
         condition: service_completed_successfully
@@ -72,12 +98,6 @@ services:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       - nginx:/opt/oro-nginx
 
-    networks:
-      default:
-        aliases:
-          - ${ORO_APP_DOMAIN}
-          - ${ORO_APP_ADDON_DOMAINS}
-
   volume-init:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: -- true
@@ -85,6 +105,31 @@ services:
     volumes:
       - oro_app:/var/www/oro
  
+  waf-init:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    entrypoint: bash
+    command: 
+      - -c
+      - |
+        sed -i 's/1024/0/g' /variables.schema.json
+        /docker-entrypoint.sh -m init
+    environment:
+      ORO_SITES: $ORO_WAF_SITES
+      ORO_HTTP_PROXY_PASS_BACKOFFICE:
+      ORO_HTTP_PROXY_PASS_STOREFRONT:
+      ORO_GLOBAL_HTTP_PORT: $ORO_NGINX_HTTP_PORT
+      ORO_GLOBAL_HTTPS_PORT: $ORO_NGINX_HTTPS_PORT
+      ORO_GLOBAL_SHARED_ROOT_DIR:
+      ORO_GLOBAL_LOCK_FILE_PATH:
+      ORO_GLOBAL_TESTCOOKIE_ENABLE:
+      ORO_GLOBAL_DOMAIN_DIRECT: false
+      ORO_GLOBAL_USE_ACME: true
+    depends_on:
+      "php-fpm-app":
+        condition: service_healthy
+    volumes:
+      - nginx-waf:/opt/oro-nginx
+
   web-init:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: nginx-init
@@ -105,7 +150,7 @@ services:
       test: "php-fpm-healthcheck"
       interval: 5s
       timeout: 30s
-      start_period: 120s
+      start_period: 15s
     environment:
       ORO_ENV:
       ORO_LOG_PATH: php://stderr
@@ -152,6 +197,7 @@ services:
         condition: service_healthy
     volumes:
       - oro_app:/var/www/oro
+      - var_data:/var/www/oro/var/data
       - cache:/var/www/oro/var/cache:ro
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
@@ -194,6 +240,7 @@ services:
       - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -236,6 +283,8 @@ services:
 
   functional:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    init: true
+    entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: functional
     user: $ORO_USER_RUNTIME
     env_file: .env
@@ -273,6 +322,8 @@ services:
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    init: true
+    entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: behat
     user: $ORO_USER_RUNTIME
     env_file: .env
@@ -285,13 +336,12 @@ services:
       ORO_BEHAT_TAGS:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
+      ORO_BEHAT_ATTEMPTS:
       BUILD_URL:
       ORO_ENV:
     depends_on:
       <<: *default-depends_on
       "consumer":
-        condition: service_started
-      "web":
         condition: service_started
       "operator":
         condition: service_started
@@ -299,6 +349,10 @@ services:
         condition: service_healthy
     volumes:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - var_data:/var/www/oro/var/data
+      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+      - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
+      - ./../docker/behat.yml:/var/www/oro/behat_oro.yml
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -321,8 +375,8 @@ services:
         condition: service_started
 
   chrome:
-    image: oroinc/chrome:$ORO_CHROME_VER
-    command: chrome --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
+    image: ${ORO_PROJECT}chrome:$ORO_CHROME_VER
+    command: chrome --enable-chrome-logs --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
     env_file: .env
     environment:
       ORO_APP_DOMAIN:
@@ -333,7 +387,7 @@ services:
       ORO_NGINX_HTTPS_PORT:
       ORO_NGINX_HTTP_PORT:
       ORO_CHROME_PORT:
-      DBUS_SESSION_BUS_ADDRESS: /dev/null
+      DBUS_SESSION_BUS_ADDRESS: unix:path=/dev/null
     healthcheck:
       test: "curl -sf http://127.0.0.1:$${ORO_CHROME_PORT}/status"
       interval: 15s
@@ -341,10 +395,11 @@ services:
       start_period: 240s
     restart: unless-stopped
     depends_on:
-      "proxy-behat":
-        condition: service_started
+      "waf-behat":
+        condition: service_healthy
     volumes:
       - /dev/shm:/dev/shm
+      - var_data:/var/www/oro/var/data
 
   backup:
     command: -- true
@@ -356,7 +411,7 @@ services:
       network: host
       args:
         ORO_BASELINE_VERSION:
-        ORO_DOCKER_PROJECT:
+        ORO_PUBLIC_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -394,7 +449,7 @@ services:
       network: host
       args:
         ORO_BASELINE_VERSION:
-        ORO_DOCKER_PROJECT:
+        ORO_PUBLIC_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE_TEST
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -461,7 +516,6 @@ services:
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
-      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   update-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
@@ -474,7 +528,6 @@ services:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
-      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   warmup-cache:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
@@ -491,7 +544,7 @@ services:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   db:
-    image: docker.io/oroinc/pgsql:${ORO_PG_VER}
+    image: ${ORO_PROJECT}pgsql:${ORO_PG_VER}
     labels:
       com.symfony.server.service-prefix: ORO_DB
     environment:
@@ -505,7 +558,7 @@ services:
     restart: unless-stopped
 
   search-engine:
-    image: elasticsearch:${ORO_ES_VER}
+    image: ${ORO_PROJECT}elasticsearch:${ORO_ES_VER}
     command: bin/elasticsearch -Eingest.geoip.downloader.enabled=false
     environment:
       discovery.type: "single-node"
@@ -526,7 +579,7 @@ services:
     restart: unless-stopped
 
   mq:
-    image: oroinc/rabbitmq:${ORO_RMQ_VER}
+    image: ${ORO_PROJECT}rabbitmq:${ORO_RMQ_VER}
     labels:
       com.symfony.server.service-prefix: ORO_MQ
     volumes:
@@ -540,7 +593,7 @@ services:
     restart: unless-stopped
 
   session-storage:
-    image: redis:${ORO_REDIS_VER}
+    image: ${ORO_PROJECT}redis:${ORO_REDIS_VER}
     command: redis-server --bind 0.0.0.0
     labels:
       com.symfony.server.service-prefix: ORO_REDIS
@@ -552,7 +605,7 @@ services:
     restart: unless-stopped
 
   file-storage:
-    image: percona/percona-server-mongodb:${ORO_MONGO_VER}
+    image: ${ORO_PROJECT}percona-server-mongodb:${ORO_MONGO_VER}
     environment:
       ORO_MONGO_DATABASE:
       ORO_MONGO_USER:
@@ -569,18 +622,20 @@ services:
     restart: unless-stopped
 
   mail:
-    image: schickling/mailcatcher
+    image: ${ORO_PROJECT}mailcatcher
     hostname: mail
     restart: unless-stopped
 
   blackfire:
-    image: blackfire/blackfire:2
+    image: ${ORO_PROJECT}blackfire:2
     environment:
       BLACKFIRE_SERVER_ID:
       BLACKFIRE_SERVER_TOKEN:
 
 volumes:
-  cache: {}
-  multihost_operation_folder: {}
-  maintenance_folder: {}
-  nginx: {}
+  cache:
+  multihost_operation_folder:
+  maintenance_folder:
+  nginx:
+  nginx-waf:
+  var_data:

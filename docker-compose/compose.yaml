@@ -3,3 +3,4 @@ include:
     - common.yaml
     - compose-proxy-${ORO_APP_PROTOCOL}.yaml
     - compose-${ORO_DOCKER_FOLDER_MODE:-prod}.yaml
+    - compose${ORO_DEBUGGER}.yaml

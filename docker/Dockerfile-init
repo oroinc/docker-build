@@ -1,9 +1,8 @@
-# syntax=docker/dockerfile:1
 
 ARG ORO_IMAGE_TAG
 ARG ORO_IMAGE_FROM
-ARG ORO_DOCKER_PROJECT
-ARG ORO_IMAGE_BUILDER=${ORO_DOCKER_PROJECT:-oroinc}/builder
+ARG ORO_PUBLIC_PROJECT
+ARG ORO_IMAGE_BUILDER=${ORO_PUBLIC_PROJECT}/builder
 ARG ORO_BASELINE_VERSION
 
 FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
@@ -25,17 +24,13 @@ LABEL com.oroinc.postgresql-version="${ORO_DB_VERSION}" \
     org.opencontainers.image.documentation="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
     org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
 
-RUN gpasswd -a $ORO_USER_RUNTIME wheel && \
-    sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/orocloud-pgdg*.repo && \
-    sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/orocloud-pgdg${ORO_DB_VERSION}.repo && \    
-    microdnf module disable postgresql && \
-    microdnf module enable redis:remi-7.0 && \
-    microdnf --setopt=install_weak_deps=0 --best --nodocs install \
-    postgresql${ORO_DB_VERSION} \
-    redis \
-    percona-server-mongodb-tools \
-    rsync bzip2 unzip time glibc-langpack-en inotify-tools sudo && \
-    microdnf clean all
+RUN <<EOR
+    set -ex
+    gpasswd -a $ORO_USER_RUNTIME wheel
+    SUDO_RPM_URL=$(curl -s https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/ | sed -n '/\/sudo/s/.*"\(getPackage.*\)".*/\1/p' | sort -V | tail -n 1)
+    VIM_RPM_URL=$(curl -s https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/ | sed -n '/\/vim/s/.*"\(getPackage.*\)".*/\1/p' | sort -V | tail -n 1)
+    rpm -Uhv "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/${SUDO_RPM_URL}" "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/${VIM_RPM_URL}"
+EOR
 
 COPY --from=mkcert /usr/local/bin/mkcert /usr/local/bin/mkcert
 COPY --from=composer /usr/local/bin/composer /usr/local/bin/composer

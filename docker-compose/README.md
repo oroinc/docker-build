@@ -35,10 +35,10 @@ The file contains several sections of variables:
 3. Variables used to configure a specific service: database, Elasticsearch, RMQ, Redis, mail, etc.
 
 ### SSL certificate
-For SSL, a special web service `proxy-behat` or `proxy` is used. Its image is `oroinc/nginx-proxy`.
-You can use your own key and certificate. To do this, they must be located along the paths `/etc/nginx/certs/webserver.crt` and `/etc/nginx/certs/webserver.key` respectively.
+For SSL, a special web service `waf-behat` or `waf` is used. For more details, [see](https://gitlab.oro.cloud/orocloud-devops/oro-cloud-docker/-/blob/master/jenkins/nginx-waf/oel8/README.md)
 If you do not have a certificate, a self-signed one will be generated for testing.
-It is possible to use a CAROOT certificate which will be used to sign a self-signed certificate. Uncomment variable CAROOT in `.env` file and point it to folder where CAROOT locate. More details can be found at https://web.dev/articles/how-to-use-local-https.
+You can use a CA ROOT certificate sign a self-signed certificate. Uncomment variable `CAROOT` in the `.env` file and point it to the folder where CA ROOT certificate and key are located. In this case CAROOT certificates will be located on the host and can be imported into the `nss` database and used in Chrome.
+For more details, see https://web.dev/articles/how-to-use-local-https.
 
 ## Actions
 
@@ -80,7 +80,7 @@ docker compose up restore-test
 
 ### Run application only web interface
 ```
-docker compose up -d proxy
+docker compose up -d waf
 ```
 
 ### Run application with consumer and websocket services
@@ -120,6 +120,24 @@ mkdir -p $ORO_DOCKER_FOLDER_PATH/oro_{app,test}
 
 > **NOTE:** As a result of the operation of the application and tests, some files are created where the owner is the user `www-data`. To remove such files from the host, you must use `sudo` or delete as `root`.
 
+### Enable xdebug
+
+[Xdebug](https://xdebug.org) is an extension for PHP, and provides a range of features to improve the PHP development experience.
+
+To enable the xdebug, edit the `.env` file and set variable (uncomment example):
+```
+ORO_DEBUGGER=-xdebug
+```
+
+It will include the required changes from `compose-xdebug.yaml`.
+
+You can use the `XDEBUG_CONFIG` variable to setup the required options for xdebug extension. XDebug uses port 9003 to connect to IDE.
+
+ - Install and configure in IDE:
+   - [PHPStorm](https://www.jetbrains.com/help/phpstorm/configuring-xdebug.html#integrationWithProduct)
+   - [VSCode](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) For VSCode you can use example `.vscode/launch.json`
+
+
 ### Enable blackfire service
 
 To enable the blackfire debugger:
@@ -153,7 +171,7 @@ ORO_DB_STAT_USER=dev
 ```
 
 > **NOTE:**
-build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'
+`build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'`
 
 Init functional test:
 ```
