@@ -162,7 +162,7 @@ For functional and behat tests, it is possible to connect to the mysql statistic
 Mysql database, user, password must be pre-created and specified in `.env`. The necessary tables are created automatically.
 Example:
 ```
-ORO_DB_STAT_HOST=jenkins.dev.oroinc.com
+ORO_DB_STAT_HOST=jenkins-dev.dev.oroinc.com
 ORO_DB_STAT_NAME_FUNCTIONAL=dev_functional_stats
 ORO_DB_STAT_NAME_BEHAT=dev_behat_stats
 ORO_DB_STAT_USER=dev

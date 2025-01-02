@@ -106,7 +106,7 @@ elif [[ "$1" == 'functional' ]]; then
             # Check if have test for run. And exit if empty
             [[ "X$TESTPATH" == 'X' ]] && break
             trap 'termHandler functional $TESTPATH' SIGTERM
-            LOGNAME="$(basename "$TESTPATH")"
+            LOGNAME="$(echo -n "$TESTPATH" | sed 's|[Tt]ests/[Ff]unctional/||g; s|vendor/||g; s|\/|_|g' | tail -c 230)"
             ts=$(date +%s%N)
             set +e
             # Save execution time in file and then use it for put in DB. Log saved in tmp file. If test failed it will collect in error file and show at the end. Passed tests are shown immediately.
