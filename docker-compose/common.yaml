@@ -154,6 +154,8 @@ services:
     environment:
       ORO_ENV:
       ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
       <<: *default-depends_on
       "volume-init":
@@ -174,6 +176,8 @@ services:
     environment:
       ORO_ENV:
       ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
       "php-fpm-app":
         condition: service_healthy
@@ -192,6 +196,8 @@ services:
     environment:
       ORO_ENV:
       ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
       "php-fpm-app":
         condition: service_healthy
@@ -295,11 +301,14 @@ services:
       ORO_DB_STAT_HOST:
       ORO_DB_STAT_PASSWORD:
       ORO_ENV: test
+    tmpfs:
+      - /tmp
     depends_on:
       <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -339,6 +348,8 @@ services:
       ORO_BEHAT_ATTEMPTS:
       BUILD_URL:
       ORO_ENV:
+    tmpfs:
+      - /tmp
     depends_on:
       <<: *default-depends_on
       "consumer":
@@ -368,6 +379,8 @@ services:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
+    tmpfs:
+      - /tmp
     depends_on:
       "chrome":
         condition: service_healthy
@@ -388,6 +401,8 @@ services:
       ORO_NGINX_HTTP_PORT:
       ORO_CHROME_PORT:
       DBUS_SESSION_BUS_ADDRESS: unix:path=/dev/null
+    tmpfs:
+      - /tmp
     healthcheck:
       test: "curl -sf http://127.0.0.1:$${ORO_CHROME_PORT}/status"
       interval: 15s
@@ -552,6 +567,8 @@ services:
       POSTGRES_DB: ${ORO_DB_NAME}
       POSTGRES_USER: ${ORO_DB_USER}
       POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
+    tmpfs:
+      - /var/lib/postgresql
     healthcheck:
       test: "pg_isready -U$${ORO_DB_USER} -d$${ORO_DB_NAME}"
       start_period: 60s
@@ -611,6 +628,8 @@ services:
       ORO_MONGO_PASSWORD:
       MONGO_INITDB_ROOT_USERNAME:
       MONGO_INITDB_ROOT_PASSWORD:
+    tmpfs:
+      - /data
     volumes:
       - ./mongo/mongo.definitions.sh:/docker-entrypoint-initdb.d/mongo.definitions.sh
     healthcheck:
