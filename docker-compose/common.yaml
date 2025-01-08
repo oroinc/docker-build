@@ -636,7 +636,7 @@ services:
       test: echo 'db.runCommand({serverStatus:1}).ok' | mongosh admin -u $MONGO_INITDB_ROOT_USERNAME -p $MONGO_INITDB_ROOT_PASSWORD --quiet | grep 1
       interval: 15s
       timeout: 30s
-      start_period: 20s
+      start_period: 60s
     restart: unless-stopped
 
   mail:
