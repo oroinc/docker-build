@@ -161,7 +161,7 @@ elif [[ "$1" == 'behat-init' ]]; then # Used for create DB with statistics and f
     _note "Use host=$ORO_DB_STAT_HOST dbname=$ORO_DB_STAT_NAME_BEHAT build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     # Create DB and tables. Need it if run local and use local DB for statistics
     MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 -Be "create database IF NOT EXISTS $ORO_DB_STAT_NAME_BEHAT" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "CREATE TABLE IF NOT EXISTS behat_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100)), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL, attempt INT(8) DEFAULT NULL)" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "CREATE TABLE IF NOT EXISTS behat_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100), attempt), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL, attempt INT(8) DEFAULT NULL)" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     # By default mysql not allow use local infile. Check this and enable. For enable use root user.
     LOCAL_INFILE=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "SELECT @@GLOBAL.local_infile;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt")
     if [[ "X$LOCAL_INFILE" != "X1" ]]; then
@@ -260,6 +260,12 @@ elif [[ "$1" == 'behat' ]]; then
                 RETVAL=$?
                 set -e +x
                 tt=$((($(date +%s%N) - $ts) / 1000000))
+                # for first attempt - update. For next - add new result
+                if [[ $attempt -eq 1 ]]; then
+                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = '$tt', attempt = COALESCE(attempt, '$attempt') WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                else
+                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (time, attempt, build_tag, path) VALUES ('$tt', '$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                fi
                 # Show log with cat to prevent mix output from different threads
                 # cat "$APP_FOLDER/var/logs/behat_output.log" || :
                 [[ -e "$APP_FOLDER/var/logs/prod.log" ]] && mv -f "$APP_FOLDER/var/logs/prod.log" "$APP_FOLDER/var/logs/behat/$LOGNAME.prod.log"
@@ -270,16 +276,25 @@ elif [[ "$1" == 'behat' ]]; then
                     mv -f "$APP_FOLDER/var/logs/behat_output.log" "$APP_FOLDER/var/logs/$LOGNAME.errors.log" || :
                     # set RETVAL_GLOBAL only for last attempt or fatal error
                     if [[ $attempt -ge ${ORO_BEHAT_ATTEMPTS:-1} ]]; then
-                        RETVAL_GLOBAL=$RETVAL
+                        RETVAL_GLOBAL=$RETVAL                        
                     fi
-                    # exit code 1 means that behat failed, but isolators restored state and ready run next test
-                    # if >1, break 2 cycles and restore state
-                    if [[ $RETVAL -gt 1 ]]; then
-                        RETVAL_GLOBAL=$RETVAL
+                    # Detect case when should exit from docker. Add new test to start it again in other thread
+                    # The usage --skip-isolator makes fail always fatal because state not restored
+                    if [[ $RETVAL -gt 1 || $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
+                        attempt=$((attempt + 1))
+                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"                        
+                        # --skip-isolators always fatal
+                        if [[ $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
+                            RETVAL_GLOBAL=7
+                        fi
+                        # exit code 1 means that behat failed, but isolators restored state and ready run next test
+                        # if >1, break 2 cycles and restore state
+                        if [[ $RETVAL -gt 1 ]]; then
+                            RETVAL_GLOBAL=$RETVAL
+                        fi
                         break 2
                     fi
                 else
-                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = '$tt', attempt = '$attempt' WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                     mv -f "$APP_FOLDER/var/logs/behat_output.log" "$APP_FOLDER/var/logs/behat/$LOGNAME.output.log" || :
                     break
                 fi
