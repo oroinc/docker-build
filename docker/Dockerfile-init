@@ -5,7 +5,7 @@ ARG ORO_PUBLIC_PROJECT
 ARG ORO_IMAGE_BUILDER=${ORO_PUBLIC_PROJECT}/builder
 ARG ORO_BASELINE_VERSION
 
-FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
+FROM ${ORO_PUBLIC_PROJECT}/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_BUILDER}:${ORO_BASELINE_VERSION} AS composer
 FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} AS data-tools
 

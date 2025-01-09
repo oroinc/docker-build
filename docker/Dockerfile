@@ -1,6 +1,6 @@
 
 ARG ORO_BASELINE_VERSION=master-latest
-ARG ORO_IMAGE_FROM=us.gcr.io/oro-product-development/init
+ARG ORO_IMAGE_FROM=harborio.oro.cloud/oro-platform-public/init
 
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
 
