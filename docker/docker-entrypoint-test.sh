@@ -276,13 +276,13 @@ elif [[ "$1" == 'behat' ]]; then
                     mv -f "$APP_FOLDER/var/logs/behat_output.log" "$APP_FOLDER/var/logs/$LOGNAME.errors.log" || :
                     # set RETVAL_GLOBAL only for last attempt or fatal error
                     if [[ $attempt -ge ${ORO_BEHAT_ATTEMPTS:-1} ]]; then
-                        RETVAL_GLOBAL=$RETVAL                        
+                        RETVAL_GLOBAL=$RETVAL
                     fi
                     # Detect case when should exit from docker. Add new test to start it again in other thread
                     # The usage --skip-isolator makes fail always fatal because state not restored
                     if [[ $RETVAL -gt 1 || $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                         attempt=$((attempt + 1))
-                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"                        
+                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                         # --skip-isolators always fatal
                         if [[ $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                             RETVAL_GLOBAL=7
