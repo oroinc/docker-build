@@ -23,13 +23,13 @@ services:
       - |
         find /etc -type f -ipath '*/php.d/*' -name '*xdebug.ini' -print0 2>/dev/null | xargs -0 -r sed -i '/zend_extension=xdebug/s/.*/zend_extension=xdebug.so/g'
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   restore:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   restore-test:
     extra_hosts:
@@ -39,7 +39,7 @@ services:
       "volume-init":
         condition: service_completed_successfully
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   install:
     extra_hosts:
@@ -49,7 +49,7 @@ services:
       "volume-init":
         condition: service_completed_successfully
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   install-test:
     extra_hosts:
@@ -59,7 +59,7 @@ services:
       "volume-init":
         condition: service_completed_successfully
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   update:
     extra_hosts:
@@ -69,7 +69,7 @@ services:
       "volume-init":
         condition: service_completed_successfully
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   update-test:
     extra_hosts:
@@ -79,53 +79,53 @@ services:
       "volume-init":
         condition: service_completed_successfully
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   operator:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   php-fpm-app:
-    image: $ORO_IMAGE_BASE_RUNTIME_DEBUG:$ORO_BASELINE_VERSION
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   consumer:
-    image: $ORO_IMAGE_BASE_RUNTIME_DEBUG:$ORO_BASELINE_VERSION
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   ws:
-    image: $ORO_IMAGE_BASE_RUNTIME_DEBUG:$ORO_BASELINE_VERSION
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   cron:
-    image: $ORO_IMAGE_BASE_RUNTIME_DEBUG:$ORO_BASELINE_VERSION
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   behat:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
   functional:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - etc-opt-remi:/etc/opt/remi
+      - etc-php-d:/etc/php.d/
 
 volumes:
-  etc-opt-remi: {}
+  etc-php-d: {}

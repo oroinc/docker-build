@@ -2,8 +2,9 @@
 ARG ORO_BASELINE_VERSION=master-latest
 ARG ORO_PUBLIC_PROJECT=harborio.oro.cloud/oro-platform-public
 ARG ORO_IMAGE_FROM=${ORO_PUBLIC_PROJECT}/init
+ARG ORO_PRIVATE_PROJECT=docker.io
 
-FROM ${ORO_PUBLIC_PROJECT}/aegypius/mkcert-for-nginx-proxy AS mkcert
+FROM ${ORO_PRIVATE_PROJECT}/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
 
 ARG ORO_IMAGE_FROM
