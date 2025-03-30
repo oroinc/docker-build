@@ -68,3 +68,8 @@ DIR_DIFF=. FILE_DIFF=diff_file.txt ../../docker-build/scripts/test_php-cs-fixer.
 ```
 **Note:** The results of tests are in docker instance. You can copy it to host from instance.
 
+### `test_deptrac.sh`
+This script executes Deptrac to analyze dependencies in PHP files specified in the [deptrac.yaml](../../package/platform/build/deptrac.yaml) configuration. It helps enforce architectural rules and detect violations.
+```bash
+../../docker-build/scripts/test_deptrac.sh -b master-latest
+```
