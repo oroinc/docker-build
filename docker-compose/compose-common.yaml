@@ -1,22 +1,10 @@
-x-depends_on: &default-depends_on
-  "db":
-    condition: service_healthy
-  "search-engine":
-    condition: service_healthy
-  "mq":
-    condition: service_healthy
-  "session-storage":
-    condition: service_healthy
-  "file-storage":
-    condition: service_healthy
-  "mail":
-    condition: service_started
-
 services:
   application:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     depends_on:
       "waf":
         condition: service_started
@@ -80,7 +68,9 @@ services:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: nginx
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     healthcheck:
       test: "curl -If http://127.0.0.1:${ORO_UPSTREAM_PORT}/"
@@ -101,7 +91,9 @@ services:
   volume-init:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     volumes:
       - oro_app:/var/www/oro
  
@@ -133,7 +125,9 @@ services:
   web-init:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: nginx-init
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     depends_on:
       "php-fpm-app":
         condition: service_healthy
@@ -143,7 +137,9 @@ services:
   php-fpm-app:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: php-fpm
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     healthcheck:
@@ -157,7 +153,6 @@ services:
     tmpfs:
       - /tmp
     depends_on:
-      <<: *default-depends_on
       "volume-init":
         condition: service_completed_successfully
     volumes:
@@ -169,7 +164,9 @@ services:
   ws:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: websocket
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -189,7 +186,9 @@ services:
   consumer:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: consumer
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -210,7 +209,9 @@ services:
   cron:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: cron
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     ulimits:
       nofile:
@@ -231,7 +232,9 @@ services:
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
     command: operator
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
       DOCKER_API_VERSION: v1.43
@@ -252,11 +255,11 @@ services:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
     command: install $ORO_INSTALL_OPTIONS
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_SAMPLE_DATA:
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -265,11 +268,11 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: console oro:install --timeout=3600
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -277,7 +280,9 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional-init
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
@@ -293,7 +298,9 @@ services:
     entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: functional
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_FUNCTIONAL_ARGS:
       ORO_LOCAL_RUN:
@@ -303,8 +310,6 @@ services:
       ORO_ENV: test
     tmpfs:
       - /tmp
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
@@ -314,7 +319,9 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat-init
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -326,8 +333,6 @@ services:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
       ORO_ENV:
-    depends_on:
-      <<: *default-depends_on
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -335,7 +340,9 @@ services:
     entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: behat
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -351,7 +358,6 @@ services:
     tmpfs:
       - /tmp
     depends_on:
-      <<: *default-depends_on
       "consumer":
         condition: service_started
       "operator":
@@ -369,7 +375,9 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat --skip-isolators
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_APP_PROTOCOL:
@@ -390,7 +398,9 @@ services:
   chrome:
     image: ${ORO_PROJECT}chrome:$ORO_CHROME_VER
     command: chrome --enable-chrome-logs --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_APP_DOMAIN:
       ORO_APP_ADDON_DOMAINS:
@@ -418,11 +428,12 @@ services:
 
   backup:
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
-      target: backup
       network: host
       args:
         ORO_BASELINE_VERSION:
@@ -447,21 +458,19 @@ services:
       labels:
         com.oroinc.orocloud.image_type: "init"
       extra_hosts:
-        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
     depends_on:
       "db":
         condition: service_healthy
-      "file-storage":
-        condition: service_started
 
   backup-test:
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
-      target: backup
       network: host
       args:
         ORO_BASELINE_VERSION:
@@ -486,23 +495,21 @@ services:
       labels:
         com.oroinc.orocloud.image_type: "init-test"
       extra_hosts:
-        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
     depends_on:
       "db":
         condition: service_healthy
-      "file-storage":
-        condition: service_started
 
   restore:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV:
     depends_on:
-      <<: *default-depends_on
       "volume-init":
         condition: service_completed_successfully
     volumes:
@@ -513,11 +520,11 @@ services:
     image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore-test
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -525,11 +532,11 @@ services:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
     command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV:
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -538,11 +545,11 @@ services:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
     command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -550,11 +557,11 @@ services:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
     command: warmup-cache
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV:
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -573,71 +580,6 @@ services:
       - /var/lib/postgresql
     healthcheck:
       test: "pg_isready -U$${ORO_DB_USER} -d$${ORO_DB_NAME}"
-      start_period: 60s
-    restart: unless-stopped
-
-  search-engine:
-    image: ${ORO_PROJECT}elasticsearch:${ORO_ES_VER}
-    command: bin/elasticsearch -Eingest.geoip.downloader.enabled=false
-    environment:
-      discovery.type: "single-node"
-      cluster.name: docker-cluster
-      bootstrap.memory_lock: "true"
-      network.host: 0.0.0.0
-      path.repo: "/tmp"
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
-      xpack.security.enabled: false
-      xpack.security.http.ssl.enabled: false
-      xpack.security.transport.ssl.enabled: false
-      cluster.routing.allocation.disk.threshold_enabled: false
-    labels:
-      com.symfony.server.service-prefix: ORO_SEARCH
-    healthcheck:
-      test: "curl -sfL 'http://127.0.0.1:9200/_cluster/health?pretty&wait_for_status=yellow&timeout=5s'"
-      start_period: 120s
-    restart: unless-stopped
-
-  mq:
-    image: ${ORO_PROJECT}rabbitmq:${ORO_RMQ_VER}
-    user: rabbitmq
-    labels:
-      com.symfony.server.service-prefix: ORO_MQ
-    volumes:
-      - ./rabbitmq/load_definitions.conf:/etc/rabbitmq/conf.d/load_definitions.conf
-      - ./rabbitmq/rmq.definitions.json:/etc/rabbitmq/rmq.definitions.json
-    healthcheck:
-      test: rabbitmq-diagnostics -q status
-      start_period: 20s
-    restart: unless-stopped
-
-  session-storage:
-    image: ${ORO_PROJECT}redis:${ORO_REDIS_VER}
-    command: redis-server --bind 0.0.0.0
-    labels:
-      com.symfony.server.service-prefix: ORO_REDIS
-    healthcheck:
-      test: "[ $$(redis-cli ping) = 'PONG' ]"
-      interval: 15s
-      timeout: 30s
-      start_period: 20s
-    restart: unless-stopped
-
-  file-storage:
-    image: ${ORO_PROJECT}percona-server-mongodb:${ORO_MONGO_VER}
-    environment:
-      ORO_MONGO_DATABASE:
-      ORO_MONGO_USER:
-      ORO_MONGO_PASSWORD:
-      MONGO_INITDB_ROOT_USERNAME:
-      MONGO_INITDB_ROOT_PASSWORD:
-    tmpfs:
-      - /data
-    volumes:
-      - ./mongo/mongo.definitions.sh:/docker-entrypoint-initdb.d/mongo.definitions.sh
-    healthcheck:
-      test: echo 'db.runCommand({serverStatus:1}).ok' | mongosh admin -u $MONGO_INITDB_ROOT_USERNAME -p $MONGO_INITDB_ROOT_PASSWORD --quiet | grep 1
-      interval: 15s
-      timeout: 30s
       start_period: 60s
     restart: unless-stopped
 
