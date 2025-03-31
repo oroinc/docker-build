@@ -33,7 +33,6 @@ services:
     volumes:
       - ${CAROOT-/var/empty}:${CAROOT-/var/empty}
       - etc-pki:/etc/pki
-      - ./config.rb:/config.rb
 
   behat:
     environment:

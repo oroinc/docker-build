@@ -2,14 +2,11 @@
 
 Below is the configuration for docker compose and configuration files for services, in addition to `.env`, where all the variables required for the services and the application are specified.
 
-## Types of compose configuration
-1. `compose.yaml` - for the enterprise version of the application. The services used are PostgreSQL, Redis, RMQ, Elasticsearch, Mongo DB.
-1. `compose-orocommerce-application.yaml` - for the community version of the application. Only PostgreSQL is used.
-1. `compose_ee_services.yaml` - used together with `compose-orocommerce-application.yaml` and allow run enterprise version of the application with all services except mongo DB. Used to launch enterprise version of the application in VirtualBox on OS windows and iOS.
+## Types of environment
+The environments for CE (Community Edition) and EE (Enterprise Edition) are different. The `ORO_CE` variable is used to select the desired environment.
+Set `ORO_CE=yes` to use the environment for CE (Community Edition). Used in conjunction with the desired application image.
 
-> **NOTE:** `compose.yaml` is used by default and should not be specified in commands. If it is necessary to use `compose-orocommerce-application.yaml`, it must be specified using the `-f` option. Example: `-f compose-orocommerce-application.yaml`
-
-This configuration allows you to perform the following actions:
+## This configuration allows you to perform the following actions:
 
 1. Install application
 1. Create init image
@@ -26,7 +23,7 @@ If you already have an init image, use it to restore data. If not, install the a
 You can use images built on CI with a PR or other branches.
 
 ## Configuration
-All configuration of scripts and applications is described using variables specified in `.env`. Additionally, the application has `.env-build` , which keeps specific settings for every application. You can also set some variables through the environment variables. In case of using `compose-orocommerce-application.yaml` configuration, `.env-orocommerce-application` is used in addition to `.env`, and has a higher priority.
+All configuration of scripts and applications is described using variables specified in `.env`. Additionally, the application has `.env-build` , which keeps specific settings for every application. You can also set some variables through the environment variables.
 
 The file contains several sections of variables:
 
