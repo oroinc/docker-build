@@ -33,7 +33,7 @@ FILE_DIFF               diff file name with list of changed files. Without it or
 
 BASELINE_VERSION='5.1-latest'
 APP_SRC="$PWD"
-ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
+ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 WORKDIR=''
 BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"
 DIFF_PHP="diff_phpcs.txt"
@@ -62,7 +62,7 @@ run() {
     LOGS="$APP_SRC/var/logs"
     if [[ ! -e $HOME/.parallel/ignored_vars ]]; then
         mkdir -p "$HOME/.parallel"
-        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" parallel --record-env
+        docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" parallel --record-env
     fi
     if [[ -e "$LOGS/$FILE_DIFF" ]]; then
         pushd "$WORKDIR" >/dev/null 2>&1 || {
@@ -101,10 +101,10 @@ run() {
     if [[ -e "$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml" && -e "$LOGS/$FILE_DIFF" ]]; then
         STANDARD="$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml"
     else
-        STANDARD="PSR2"
+        STANDARD="${ORO_CS_STANDARD-PSR2}"
     fi
     set -x
-    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_DOCKER_PROJECT/test:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.cs2.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/phpcs' {} -p --encoding=utf-8 --extensions=php --standard='$STANDARD' --report=checkstyle --report-file='$APP_SRC/var/logs/static_analysis/phpcs_{#}.xml'\"" || {
+    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.cs2.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/phpcs' {} -p --encoding=utf-8 --extensions=php --standard='$STANDARD' --report=checkstyle --report-file='$APP_SRC/var/logs/static_analysis/phpcs_{#}.xml'\"" || {
         echo -e "${RED}ERROR to run phpcs${NC}"
         exit 1
     }

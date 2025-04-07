@@ -1,23 +1,43 @@
-# syntax=docker/dockerfile:1
 
 ARG ORO_BASELINE_VERSION=5.1-latest
-ARG ORO_IMAGE_FROM=docker.io/oroinc/test
+ARG ORO_PUBLIC_PROJECT=harborio.oro.cloud/oro-platform-public
+ARG ORO_IMAGE_FROM=${ORO_PUBLIC_PROJECT}/init
+ARG ORO_PRIVATE_PROJECT=docker.io
 
-FROM docker.io/aegypius/mkcert-for-nginx-proxy AS mkcert
+FROM ${ORO_PRIVATE_PROJECT}/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}
+
+ARG ORO_IMAGE_FROM
+ARG ORO_BASELINE_VERSION
 
 ENV ORO_APP_FOLDER=/var/www/oro \
     ORO_USER=root \
     ORO_USER_RUNTIME=www-data
 
-RUN --mount=type=bind,target=/source \
-    groupadd --system --gid 2001 $ORO_USER_RUNTIME && useradd --home-dir $ORO_APP_FOLDER/var --uid 2002 --gid $ORO_USER_RUNTIME --no-create-home --system $ORO_USER_RUNTIME && \
-    rsync -a --exclude-from=/source/.rsync-exclude-test --chown="$ORO_USER":"$ORO_USER_RUNTIME" /source/ $ORO_APP_FOLDER && \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions} 2>/dev/null; \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null; \
-    chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm && \
+LABEL com.oroinc.orocloud.app="/var/www/oro" \
+    com.oroinc.orocloud.image_type="test" \
+    org.opencontainers.image.title="Application test image" \
+    org.opencontainers.image.description="Application test image. Used for run functional and behat tests" \
+    org.opencontainers.image.authors="ORO Inc." \
+    org.opencontainers.image.vendor="ORO Inc." \
+    org.opencontainers.image.url="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.documentation="https://github.com/laboro/dev/blob/master/docker-build/docker/README.md" \
+    org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
+
+RUN --mount=type=bind,target=/source <<EOR
+    set -ex
+    rsync -a --exclude-from=/source/.rsync-exclude-test --chown="$ORO_USER":"$ORO_USER_RUNTIME" /source/ $ORO_APP_FOLDER
+    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost}
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost} 2>/dev/null
+    mkdir -p "$ORO_APP_FOLDER"/public/{media,bundles,js}
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/{media,bundles,js} 2>/dev/null
+    chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm
     chown -R "$ORO_USER":"$ORO_USER_RUNTIME" /var/lib/php/{opcache,session,wsdlcache}
+EOR
 
 COPY --from=mkcert /usr/local/bin/mkcert /usr/local/bin/mkcert
+COPY --from=test behat.yml /var/www/oro/behat_oro.yml
+COPY --from=test docker-entrypoint-test.sh /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT [ "docker-entrypoint.sh" ]
 WORKDIR $ORO_APP_FOLDER
 VOLUME "$ORO_APP_FOLDER/var/cache"

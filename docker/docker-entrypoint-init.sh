@@ -32,7 +32,7 @@ backup_pg_db() {
     export PGPASSWORD="$ORO_DB_PASSWORD"
     _note "Backup DB from: $ORO_DB_NAME to file: $DB_FILE"
     mkdir -p "$(dirname "$DB_FILE")"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     pg_dump -Fp --no-acl --no-owner --no-privileges -c --if-exists --user="$ORO_DB_USER" --host="$ORO_DB_HOST" --port="$ORO_DB_PORT" "$ORO_DB_NAME" >"$DB_FILE" || _error "Can't create backup to file $DB_FILE"
     set +x
 }
@@ -51,7 +51,7 @@ restore_pg_db() {
     ORO_TABLES_NUM=$($PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -t -c "SELECT count(table_name) FROM information_schema.tables WHERE table_schema = 'public';")
     if [ "$ORO_TABLES_NUM" -eq 0 ]; then
         _note "Restore dump from file: $DB_FILE to: $ORO_DB_NAME"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         $PG_COMMAND --set ON_ERROR_STOP=on $DB_USER_O $DB_HOST_O $DB_PORT_O -d "$ORO_DB_NAME" <"$DB_FILE" >/dev/null || _error "Can't restore dump"
         $PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -c "GRANT CONNECT ON DATABASE $ORO_DB_NAME TO $ORO_DB_USER;" || _error "Can't grant privileges 1"
         $PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -c "GRANT USAGE ON SCHEMA public TO $ORO_DB_USER;" || _error "Can't grant privileges 2"
@@ -110,30 +110,32 @@ copy_files() {
 
 warmup_cache() {
     _note "Warmup cache"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     php "$APP_FOLDER/bin/console" cache:warmup || _error "Can't warmup cache"
     set +x
 }
 
+routing_dump() {
+    _note "Routing and translations dump"
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+    php "$APP_FOLDER/bin/console" oro:translation:dump || _error "Can't translation dump"
+    php "$APP_FOLDER/bin/console" fos:js-routing:dump || _error "Can't routing dump"
+    set +x
+}
+
 clear_cache() {
-    local REDIS_CONNECT REDIS_PROTOCOL i
+    local REDIS_CONNECT REDIS_PROTOCOL REDIS_BASES
+    REDIS_BASES=${1-'ORO_SESSION_DSN ORO_REDIS_CACHE_DSN ORO_REDIS_DOCTRINE_DSN ORO_REDIS_LAYOUT_DSN'}
     _note "Clear cache for $ORO_ENV environment"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     rm -rf "$APP_FOLDER/var/cache/$ORO_ENV" || _error "Can't clear cache"
     set +x
-    i=0
-    for REDIS_CONNECT in ORO_REDIS_SESSION_DSN ORO_REDIS_CACHE_DSN ORO_REDIS_DOCTRINE_DSN ORO_REDIS_LAYOUT_DSN; do
-        # Check DSN variables in cycle if set or not. In case if not set generate it from ORO_REDIS_URL
-        if [[ "X${!REDIS_CONNECT}" == 'X' && "X$ORO_REDIS_URL" != 'X' ]]; then
-            REDIS_CONNECT=$ORO_REDIS_URL/$i
-            ((i = i + 1))
-        else
-            REDIS_CONNECT=${!REDIS_CONNECT}
-        fi
-        # _note "REDIS_CONNECT=$REDIS_CONNECT"
+    for REDIS_CONNECT in $REDIS_BASES; do
+        REDIS_CONNECT=${!REDIS_CONNECT}
+        _note "REDIS_CONNECT=$REDIS_CONNECT"
         REDIS_PROTOCOL=$(echo "$REDIS_CONNECT" | cut -d':' -f1)
         if [[ "$REDIS_PROTOCOL" =~ ^redis ]]; then
-            set -x
+            [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
             redis-cli -u "$REDIS_CONNECT" FLUSHDB || {
                 set +x
                 _error "Can't run FLUSHDB"
@@ -145,12 +147,12 @@ clear_cache() {
 
 reindex() {
     _note "Reindex search engine"
-    set -x
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     php "$APP_FOLDER/bin/console" oro:search:reindex || _error "Can't reindex search"
     set +x
     if bin/console | grep -q oro:website-search:reindex; then
         _note "Reindex website search engine"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:website-search:reindex || _error "Can't reindex website search"
         set +x
     fi
@@ -165,112 +167,228 @@ generate_OAuth_keys() {
 }
 
 update_settiings() {
+    local NGINX_PORT
+    if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' ]]; then
+        NGINX_PORT=$ORO_NGINX_HTTPS_PORT
+    else
+        NGINX_PORT=$ORO_NGINX_HTTP_PORT
+    fi
+    # Don't set port if it's standart
+    if [[ $NGINX_PORT -eq 80 || $NGINX_PORT -eq 443 ]]; then
+        NGINX_PORT=''
+    else
+        NGINX_PORT=":$NGINX_PORT"
+    fi
     if [[ "X$ORO_APP_DOMAIN" != "X" ]]; then
-        _note "Update URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN"
-        set -x
-        php "$APP_FOLDER/bin/console" oro:config:update oro_ui.application_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
-        php "$APP_FOLDER/bin/console" oro:config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
-        php "$APP_FOLDER/bin/console" oro:config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" || :
+        _note "Update URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/"
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+        php "$APP_FOLDER/bin/console" oro:config:update oro_ui.application_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/" || :
+        php "$APP_FOLDER/bin/console" oro:config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/" || :
+        php "$APP_FOLDER/bin/console" oro:config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/" || :
         set +x
     fi
     if "$APP_FOLDER/bin/console" | grep -q 'oro:b2c-config:update' && [[ "X$ORO_APP_DOMAIN_B2C" != 'X' ]]; then
-        _note "Update B2C URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C"
-        set -x
-        php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C" || :
-        php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C" || :
+        _note "Update B2C URL: $ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C${NGINX_PORT}/"
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+        php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C${NGINX_PORT}/" || :
+        php "$APP_FOLDER/bin/console" oro:b2c-config:update oro_website.secure_url "$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN_B2C${NGINX_PORT}/" || :
         set +x
     fi
     if [[ "X$ORO_USER_NAME" != "X" && "X$ORO_USER_EMAIL" != "X" ]]; then
         _note "Update email $ORO_USER_EMAIL for user $ORO_USER_NAME"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:user:update "$ORO_USER_NAME" --user-email="$ORO_USER_EMAIL" --user-name="$ORO_USER_NAME"
         set +x
     fi
     # if [[ "X$ORO_LANGUAGE" != "X" && "X$ORO_FORMATTING_CODE" != "X" ]]; then
     #     _note "Update language $ORO_LANGUAGE and formating code $ORO_FORMATTING_CODE"
-    #     set -x
+    #     [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     #     php "$APP_FOLDER/bin/console" oro:localization:update --formatting-code="$ORO_FORMATTING_CODE" --language="$ORO_LANGUAGE" || :
     #     php "$APP_FOLDER/bin/console" oro:translation:update --all || :
     #     set +x
     # fi
     if [[ "X$ORO_APP_COUNTRY" != "X" ]]; then
         _note "Update country $ORO_APP_COUNTRY"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.country "$ORO_APP_COUNTRY" || :
         set +x
     fi
     if [[ "X$ORO_APP_TIMEZONE" != "X" ]]; then
         _note "Update timezone $ORO_APP_TIMEZONE"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.timezone "$ORO_APP_TIMEZONE" || :
         set +x
     fi
     if [[ "X$ORO_APP_TEMPERATURE_UNIT" != "X" ]]; then
         _note "Update temperature_unit $ORO_APP_TEMPERATURE_UNIT"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.temperature_unit "$ORO_APP_TEMPERATURE_UNIT" || :
         set +x
     fi
     if [[ "X$ORO_APP_WIND_SPEED_UNIT" != "X" ]]; then
         _note "Update wind_speed_unit $ORO_APP_WIND_SPEED_UNIT"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_locale.wind_speed_unit "$ORO_APP_WIND_SPEED_UNIT" || :
         set +x
     fi
     if [[ "X$ORO_APP_CURRENCY" != "X" ]]; then
         _note "Update currency $ORO_APP_CURRENCY"
-        set -x
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         php "$APP_FOLDER/bin/console" oro:config:update oro_currency.default_currency "$ORO_APP_CURRENCY" || :
         set +x
     fi
 }
 
 entity_extend_update() {
-    local RETVAL FILENAME
+    local RETVAL FILENAME START_TIME
     FILENAME=$1
 
-    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
 
-    _note "Stop consumer services"
-    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/stop" | jq .
-    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
-
-    _note "Enable maintenance mode"
-    sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:lock -v --no-interaction"
-    touch /var/www/oro/var/cache/maintenance_lock
-    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    [[ -e "$$ORO_GLOBAL_LOCK_FILE_PATH" ]] || {
+        _note "Create global lock file $ORO_GLOBAL_LOCK_FILE_PATH"
+        sudo -E -u "$ORO_USER_RUNTIME" touch "$ORO_GLOBAL_LOCK_FILE_PATH"
+    }
 
     # Use pause instead stop for keep instance IP
     _note "Pause $ORO_PAUSE_SERVICES services"
-    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/pause" | jq .
-    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    START_TIME=$(date +%s)
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/pause' | jq .message | grep -w 'is already paused' ; do sleep 1; [ $(($(date +%s) - 
+    START_TIME)) -lt 20 ] || { echo \"Can't pause instance ID={}\"; break; } ; done"
 
-    _note "Run 'console oro:entity-extend:update' operation"
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    _note "Stop consumer services"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/stop?t=30' | jq . ; curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/wait' | jq . "
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    clear_cache 'ORO_REDIS_CACHE_DSN ORO_REDIS_LAYOUT_DSN' || _error "Can't clear cache"
+
+    _note "Run '/usr/local/bin/composer run schema-update' operation"
     set +e
-    sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:entity-extend:update --no-interaction"
+    sudo -E -u "$ORO_USER_RUNTIME" /usr/local/bin/composer run schema-update
     RETVAL=$?
     set -e
+
+    # write result
     if [ $RETVAL -eq 0 ]; then
+        _note "Restart $ORO_RESTART_SERVICES services"
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_RESTART_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/restart' | jq . "
+
+        _note "Start $ORO_CONSUMER_SERVICE service"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/start' | jq . ; while ! curl --unix-socket /var/run/docker.sock -s -G -XGET 'http://localhost/${DOCKER_API_VERSION}/containers/{}/json' | jq -r '.State.Status' | grep -qw 'running' ;do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't start instance ID={}\"; break; } ; done"
+
         _note "Successfully executed entity extend update"
-        echo "{ \"status\": \"success\", \"timestamp\": $(date +%s) }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+        echo "{ \"status\": \"success\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
     else
+        _note "UnPause $ORO_PAUSE_SERVICES services"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/unpause' | jq .message | grep -w 'is not paused' ; do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't unpause instance ID={}\"; break; } ; done"
+
+        _note "Start $ORO_CONSUMER_SERVICE service"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/start' | jq . ; while ! curl --unix-socket /var/run/docker.sock -s -G -XGET 'http://localhost/${DOCKER_API_VERSION}/containers/{}/json' | jq -r '.State.Status' | grep -qw 'running' ;do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't start instance ID={}\"; break; } ; done"
+
         _warn "Unable to execute entity extend update"
-        echo "{ \"status\": \"failed\", \"timestamp\": $(date +%s), \"errorCode\": \"$RETVAL\", }" >"$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+        echo "{ \"status\": \"failed\", \"timestamp\": $(date +%s), \"errorCode\": \"$RETVAL\", }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
     fi
-
-    _note "Restart $ORO_RESTART_SERVICES services"
-    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_RESTART_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/restart" | jq .
-
-    _note "Start $ORO_CONSUMER_SERVICE service"
-    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -r -I {} curl --unix-socket /var/run/docker.sock -s -G -XPOST "http://localhost/${DOCKER_API_VERSION}/containers/{}/start" | jq .
-
-    if [[ -e /var/www/oro/var/cache/maintenance_lock ]]; then
-        _note "Disable maintenance mode"
-        sudo -E -u "$ORO_USER_RUNTIME" bash -c "php /var/www/oro/bin/console oro:maintenance:unlock -v --no-interaction"
-        rm -f /var/www/oro/var/cache/maintenance_lock || :
-    fi
-
+    _note "Remove global lock file"
+    rm -f "$ORO_GLOBAL_LOCK_FILE_PATH" || :
     _note "Finish operation"
+    echo
+}
+
+cache_dump() {
+    local RETVAL FILENAME START_TIME
+    FILENAME=$1
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    # Use pause instead stop for keep instance IP
+    _note "Pause $ORO_PAUSE_SERVICES|$ORO_CONSUMER_SERVICE services"
+    START_TIME=$(date +%s)
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-($ORO_PAUSE_SERVICES|$ORO_CONSUMER_SERVICE)-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/pause' | jq .message | grep -w 'is already paused' ; do sleep 1; [ $(($(date +%s) - 
+    START_TIME)) -lt 20 ] || { echo \"Can't pause instance ID={}\"; break; } ; done"
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    set +e
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+    rsync -a --quiet --numeric-ids --delete "$APP_FOLDER/var/cache/$ORO_ENV/" "$APP_FOLDER/var/cache/dump_$ORO_ENV"
+    RETVAL=$?
+    set +x
+    set -e
+
+    _note "UnPause $ORO_PAUSE_SERVICES|$ORO_CONSUMER_SERVICE services"
+    START_TIME=$(date +%s)
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-($ORO_PAUSE_SERVICES|$ORO_CONSUMER_SERVICE)-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/unpause' | jq .message | grep -w 'is not paused' ; do sleep 1; [ $(($(date +%s) - 
+    START_TIME)) -lt 20 ] || { echo \"Can't unpause instance ID={}\"; break; } ; done"
+
+    # write result
+    if [ $RETVAL -eq 0 ]; then
+        _note "Successfully cache dumped"
+        echo "{ \"status\": \"success\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    else
+        _warn "Unable to dump cache"
+        echo "{ \"status\": \"failed\", \"timestamp\": $(date +%s), \"errorCode\": \"$RETVAL\", }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    fi
+    _note "Finish operation"
+    echo
+}
+
+cache_restore() {
+    local RETVAL FILENAME START_TIME
+    FILENAME=$1
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    # Use pause instead stop for keep instance IP
+    _note "Pause $ORO_PAUSE_SERVICES services"
+    START_TIME=$(date +%s)
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/pause' | jq .message | grep -w 'is already paused' ; do sleep 1; [ $(($(date +%s) - 
+    START_TIME)) -lt 20 ] || { echo \"Can't pause instance ID={}\"; break; } ; done"
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    _note "Stop consumer services"
+    curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/stop?t=30' | jq . ; curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/wait' | jq ."
+
+    echo "{ \"status\": \"running\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+
+    set +e
+    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+    rsync -a --quiet --numeric-ids --delete "$APP_FOLDER/var/cache/dump_$ORO_ENV/" "$APP_FOLDER/var/cache/$ORO_ENV"
+    RETVAL=$?
+    set +x
+    set -e
+
+    # write result
+    if [ $RETVAL -eq 0 ]; then
+        _note "Restart $ORO_RESTART_SERVICES services"
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_RESTART_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/restart' | jq . "
+
+        _note "Start $ORO_CONSUMER_SERVICE service"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/start' | jq . ; while ! curl --unix-socket /var/run/docker.sock -s -G -XGET 'http://localhost/${DOCKER_API_VERSION}/containers/{}/json' | jq -r '.State.Status' | grep -qw 'running' ;do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't start instance ID={}\"; break; } ; done"
+
+        _note "Successfully restored cache"
+        echo "{ \"status\": \"success\", \"timestamp\": $(date +%s) }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    else
+        _note "UnPause $ORO_PAUSE_SERVICES services"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_PAUSE_SERVICES-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "while ! curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/unpause' | jq .message | grep -w 'is not paused' ; do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't unpause instance ID={}\"; break; } ; done"
+
+        _note "Start $ORO_CONSUMER_SERVICE service"
+        START_TIME=$(date +%s)
+        curl --unix-socket /var/run/docker.sock -s -G -XGET "http://localhost/${DOCKER_API_VERSION}/containers/json" -d 'all=1' --data-urlencode "filters={\"name\":[\"/$COMPOSE_PROJECT_NAME-$ORO_CONSUMER_SERVICE-.*\"]}" | jq -r '.[].Id' | xargs -P 0 -r -I {} bash -c "curl --unix-socket /var/run/docker.sock -s -G -XPOST 'http://localhost/${DOCKER_API_VERSION}/containers/{}/start' | jq . ; while ! curl --unix-socket /var/run/docker.sock -s -G -XGET 'http://localhost/${DOCKER_API_VERSION}/containers/{}/json' | jq -r '.State.Status' | grep -qw 'running' ;do sleep 1; [ $(($(date +%s) - START_TIME)) -lt 20 ] || { echo \"Can't start instance ID={}\"; break; } ; done"
+
+        _warn "Unable to restore cache"
+        echo "{ \"status\": \"failed\", \"timestamp\": $(date +%s), \"errorCode\": \"$RETVAL\", }" | sudo -E -u "$ORO_USER_RUNTIME" tee "$ORO_MULTIHOST_OPERATION_FOLDER/$FILENAME"
+    fi
+    _note "Finish operation"
+    echo
 }
 
 install_system_caroot() {
@@ -285,6 +403,15 @@ install_system_caroot() {
     [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
     sudo bash -c "CAROOT='$ORO_CAROOT' TRUST_STORES=system /usr/local/bin/mkcert -install"
     set +x
+}
+
+set_files_owner() {
+    if [[ "X$ORO_DOCKER_FOLDER_MODE" == 'Xdev' ]]; then
+        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
+        find "$APP_FOLDER" -user "$ORO_USER_RUNTIME" -group "$ORO_USER_RUNTIME" -print0 | sudo xargs -r -0 chmod g+w
+        find "$APP_FOLDER" -print0 | sudo xargs -r -0 chown "$ORO_USER"
+        set +x
+    fi
 }
 
 APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
@@ -341,6 +468,7 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' ]]; then
         install_system_caroot
     fi
+    set_files_owner
     exit 0
 elif [[ "$1" == 'restore-pg' ]]; then
     restore_pg_db '/oro_init/db.sql'
@@ -377,13 +505,16 @@ elif [[ "$1" == 'update-settiings' ]]; then
 elif [[ "$1" == 'generate-oauth-keys' ]]; then
     generate_OAuth_keys
     exit 0
+elif [[ "$1" == 'set-owner' ]]; then
+    set_files_owner
+    exit 0
 elif [[ "$1" == 'operator' ]]; then
     _note 'Run operator service'
     [ -d "$ORO_MULTIHOST_OPERATION_FOLDER" ] || _error "The folder $ORO_MULTIHOST_OPERATION_FOLDER not exist"
     rm -rf "${ORO_MULTIHOST_OPERATION_FOLDER:?}"/*
     inotifywait -qm -e 'close_write,moved_to' --format '%e %f' "$ORO_MULTIHOST_OPERATION_FOLDER" |
         while read -r ACTION REQUESTFILENAME; do
-            [[ $REQUESTFILENAME =~ ^entity_extend_update_.*\.request\.json$ ]] || continue
+            [[ $REQUESTFILENAME =~ ^(entity_extend_update|cache_dump|cache_restore)_.*\.request\.json$ ]] || continue
             _note "Get ACTION=$ACTION REQUESTFILENAME=$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME"
             OPERATION_NAME=$(jq -r '.operationName' "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME")
             RESPONSEFILENAME=$(jq -r '.responseFileName' "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME")
@@ -394,14 +525,52 @@ elif [[ "$1" == 'operator' ]]; then
                 entity_extend_update "$RESPONSEFILENAME"
                 # rm -fv "$ORO_MULTIHOST_OPERATION_FOLDER/$REQUESTFILENAME" || :
                 ;;
+            cache_dump)
+                cache_dump "$RESPONSEFILENAME"
+                ;;
+            cache_restore)
+                if [[ -d "$APP_FOLDER/var/cache/dump_$ORO_ENV" ]]; then
+                    cache_restore "$RESPONSEFILENAME"
+                else
+                    _warn "The dump folder $APP_FOLDER/var/cache/dump_$ORO_ENV doesn't exist. Run 'cache_dump' operation before 'cache_restore'"
+                fi
+                ;;
             esac
         done
     exit 0
 elif [[ "$1" == 'update' ]]; then
     clear_cache
+    _note 'Run console oro:platform:update'
+    php "$APP_FOLDER/bin/console" oro:platform:update
     _note 'Run console oro:platform:update --force'
     php "$APP_FOLDER/bin/console" oro:platform:update --force
+    clear_cache
+    warmup_cache
     exit 0
+elif [[ "$1" == 'script' ]]; then
+    _note "$@"
+    shift
+    [[ $ORO_CLI_LOGFILE ]] && exec > >(tee -a "$ORO_CLI_LOGFILE")
+    set -- composer "$@"
+elif [[ "$1" == 'install' ]]; then
+    _note "$@"
+    shift
+    [[ $ORO_CLI_LOGFILE ]] && exec > >(tee -a "$ORO_CLI_LOGFILE")
+    set -- php /var/www/oro/bin/console oro:install \
+        --no-interaction \
+        --no-ansi \
+        --timeout=0 \
+        --user-name="$ORO_USER_NAME" \
+        --user-email="$ORO_USER_EMAIL" \
+        --user-firstname="$ORO_USER_FIRSTNAME" \
+        --user-lastname="$ORO_USER_LASTNAME" \
+        --user-password="$ORO_USER_PASSWORD" \
+        --sample-data="$ORO_SAMPLE_DATA" \
+        --organization-name="$ORO_ORGANIZATION_NAME" \
+        --language="$ORO_LANGUAGE" \
+        --formatting-code="$ORO_FORMATTING_CODE" \
+        --application-url="$ORO_APP_URL" \
+        "$@"
 fi
 
 exec "$@"

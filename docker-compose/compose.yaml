@@ -1,6 +1,10 @@
-version: "3.9"
-
 include:
   - path: 
-    - common.yaml
+    - compose-common.yaml
+    - compose-ce-${ORO_CE-no}.yaml
     - compose-proxy-${ORO_APP_PROTOCOL}.yaml
+    - compose-${ORO_DOCKER_FOLDER_MODE:-prod}.yaml
+    - compose${ORO_DEBUGGER}.yaml
+    env_file:
+    - .env
+    - .env-ce-${ORO_CE-no}

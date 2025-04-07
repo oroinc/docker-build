@@ -1,165 +1,278 @@
-version: "3.9"
-x-depends_on: &default-depends_on
-  "db":
-    condition: service_healthy
-  "search-engine":
-    condition: service_healthy
-  "mq":
-    condition: service_healthy
-  "session-storage":
-    condition: service_healthy
-  "file-storage":
-    condition: service_healthy
-  "mail":
-    condition: service_started
-
 services:
   application:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     depends_on:
-      "web":
+      "waf":
         condition: service_started
       "consumer":
+        condition: service_started
+      "ws":
         condition: service_started
       "cron":
         condition: service_started
       "operator":
         condition: service_started
 
-  web:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: nginx
-    env_file: .env
+  waf:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    command: -m nginx
+    user: nginx
     restart: unless-stopped
+    depends_on:
+      "waf-init":
+        condition: service_completed_successfully
+      "web":
+        condition: service_healthy
+    volumes:
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - nginx-waf:/opt/oro-nginx
     ports:
-      - 80:80
-    depends_on:
-      "php-fpm-app":
-        condition: service_healthy
-      "ws":
-        condition: service_started
-    volumes:
-      - cache:/var/www/oro/var/cache
+      - published: 80
+        target: $ORO_NGINX_HTTP_PORT
     networks:
       default:
         aliases:
           - ${ORO_APP_DOMAIN}
+          - ${ORO_APP_DOMAIN_B2C}
           - ${ORO_APP_ADDON_DOMAINS}
+          - ws
 
-  web-behat:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: nginx
-    env_file: .env
+  waf-behat:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    command: -m nginx
+    user: nginx
     restart: unless-stopped
     depends_on:
-      "php-fpm-app":
-        condition: service_healthy
-      "ws":
+      "waf-init":
+        condition: service_completed_successfully
+      "web":
         condition: service_started
     volumes:
-      - cache:/var/www/oro/var/cache
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - nginx-waf:/opt/oro-nginx
+    expose:
+      - $ORO_NGINX_HTTP_PORT
     networks:
       default:
         aliases:
           - ${ORO_APP_DOMAIN}
+          - ${ORO_APP_DOMAIN_B2C}
           - ${ORO_APP_ADDON_DOMAINS}
+          - ws
+
+  web:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    command: nginx
+    user: $ORO_USER_RUNTIME
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    restart: unless-stopped
+    healthcheck:
+      test: "curl -If http://127.0.0.1:${ORO_UPSTREAM_PORT}/"
+      interval: 15s
+      timeout: 30s
+      start_period: 15s
+    depends_on:
+      "web-init":
+        condition: service_completed_successfully
+      "php-fpm-app":
+        condition: service_healthy
+    volumes:
+      - oro_app:/var/www/oro
+      - cache:/var/www/oro/var/cache:ro
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - nginx:/opt/oro-nginx
+
+  volume-init:
+    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    command: -- true
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    volumes:
+      - oro_app:/var/www/oro
+ 
+  waf-init:
+    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    entrypoint: bash
+    command: 
+      - -c
+      - |
+        sed -i 's/1024/0/g' /variables.schema.json
+        /docker-entrypoint.sh -m init
+    environment:
+      ORO_SITES: $ORO_WAF_SITES
+      ORO_HTTP_PROXY_PASS_BACKOFFICE:
+      ORO_HTTP_PROXY_PASS_STOREFRONT:
+      ORO_GLOBAL_HTTP_PORT: $ORO_NGINX_HTTP_PORT
+      ORO_GLOBAL_HTTPS_PORT: $ORO_NGINX_HTTPS_PORT
+      ORO_GLOBAL_SHARED_ROOT_DIR:
+      ORO_GLOBAL_LOCK_FILE_PATH:
+      ORO_GLOBAL_TESTCOOKIE_ENABLE:
+      ORO_GLOBAL_DOMAIN_DIRECT: false
+      ORO_GLOBAL_USE_ACME: true
+    depends_on:
+      "php-fpm-app":
+        condition: service_healthy
+    volumes:
+      - nginx-waf:/opt/oro-nginx
+
+  web-init:
+    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    command: nginx-init
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    depends_on:
+      "php-fpm-app":
+        condition: service_healthy
+    volumes:
+      - nginx:/opt/oro-nginx
 
   php-fpm-app:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: php-fpm
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    restart: unless-stopped
+    user: ${ORO_USER_RUNTIME:-www-data}
     healthcheck:
       test: "php-fpm-healthcheck"
       interval: 5s
       timeout: 30s
-      start_period: 120s
-    restart: unless-stopped
+      start_period: 15s
+    environment:
+      ORO_ENV:
+      ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
-      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
     volumes:
-      - cache:/var/www/oro/var/cache
+      - oro_app:/var/www/oro
+      - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   ws:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console gos:websocket:server -v"
-    env_file: .env
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    command: websocket
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
+    environment:
+      ORO_ENV:
+      ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - oro_app:/var/www/oro
+      - cache:/var/www/oro/var/cache:ro
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   consumer:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: job-runner run --loop --no-ansi --attempts=30 --delay=5 --kill --present=/var/www/oro/bin/console --lock=$${ORO_MAINTENANCE_LOCK_FOLDER}/$${ORO_MAINTENANCE_LOCK_FILE_NAME} "php -ddisplay_errors=stderr /var/www/oro/bin/console oro:message-queue:consume --memory-limit=500 -v"
-    env_file: .env
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    command: consumer
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
+    environment:
+      ORO_ENV:
+      ORO_LOG_PATH: php://stderr
+    tmpfs:
+      - /tmp
     depends_on:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - oro_app:/var/www/oro
+      - var_data:/var/www/oro/var/data
+      - cache:/var/www/oro/var/cache:ro
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   cron:
-    image: $ORO_IMAGE:$ORO_IMAGE_TAG
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     command: cron
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     restart: unless-stopped
     ulimits:
       nofile:
         soft: 1024
         hard: 1048576
+    environment:
+      ORO_ENV:
+      ORO_LOG_PATH: php://stderr
     depends_on:
       "php-fpm-app":
         condition: service_healthy
     volumes:
-      - cache:/var/www/oro/var/cache
+      - oro_app:/var/www/oro
+      - cache:/var/www/oro/var/cache:ro
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   operator:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
     command: operator
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
       DOCKER_API_VERSION: v1.43
+      ORO_LOG_PATH: php://stderr
     restart: unless-stopped
     depends_on:
       "php-fpm-app":
         condition: service_healthy
     volumes:
       - /run/docker.sock:/run/docker.sock
+      - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
       - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
-    command: console oro:install --no-interaction --timeout=3600 --user-name="$ORO_USER_NAME" --user-email="$ORO_USER_EMAIL" --user-firstname="$ORO_USER_FIRSTNAME" --user-lastname="$ORO_USER_LASTNAME" --user-password="$ORO_USER_PASSWORD" --sample-data="$ORO_SAMPLE_DATA" --organization-name="$ORO_ORGANIZATION_NAME" --language=$ORO_LANGUAGE --formatting-code=$ORO_FORMATTING_CODE --application-url="$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN" $ORO_INSTALL_OPTIONS
+    command: install $ORO_INSTALL_OPTIONS
     user: $ORO_USER_RUNTIME
-    env_file: .env
-    depends_on:
-      <<: *default-depends_on
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    environment:
+      ORO_SAMPLE_DATA:
     volumes:
+      - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
 
   install-test:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: console oro:install --timeout=3600
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -167,7 +280,9 @@ services:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: functional-init
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
@@ -179,9 +294,13 @@ services:
 
   functional:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    init: true
+    entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: functional
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_FUNCTIONAL_ARGS:
       ORO_LOCAL_RUN:
@@ -189,16 +308,20 @@ services:
       ORO_DB_STAT_HOST:
       ORO_DB_STAT_PASSWORD:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
+    tmpfs:
+      - /tmp
     volumes:
       - cache:/var/www/oro/var/cache
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
 
   behat-init:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat-init
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -209,14 +332,17 @@ services:
       ORO_BEHAT_TAGS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
-    depends_on:
-      <<: *default-depends_on
+      ORO_ENV:
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    init: true
+    entrypoint: docker-init -g -s -- /usr/local/bin/docker-entrypoint.sh
     command: behat
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -226,21 +352,32 @@ services:
       ORO_BEHAT_TAGS:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
+      ORO_BEHAT_ATTEMPTS:
       BUILD_URL:
+      ORO_ENV:
+    tmpfs:
+      - /tmp
     depends_on:
-      <<: *default-depends_on
       "consumer":
         condition: service_started
-      "web-behat":
+      "operator":
         condition: service_started
       "chrome":
         condition: service_healthy
+    volumes:
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
+      - var_data:/var/www/oro/var/data
+      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
+      - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
+      - ./../docker/behat.yml:/var/www/oro/behat_oro.yml
 
   behat-remote:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
     command: behat --skip-isolators
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_BEHAT_ARGS:
       ORO_APP_PROTOCOL:
@@ -250,6 +387,8 @@ services:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
+    tmpfs:
+      - /tmp
     depends_on:
       "chrome":
         condition: service_healthy
@@ -257,9 +396,11 @@ services:
         condition: service_started
 
   chrome:
-    image: oroinc/chrome:$ORO_CHROME_VER
-    command: chrome --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
-    env_file: .env
+    image: ${ORO_PROJECT}chrome:$ORO_CHROME_VER
+    command: chrome --enable-chrome-logs --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_APP_DOMAIN:
       ORO_APP_ADDON_DOMAINS:
@@ -269,25 +410,35 @@ services:
       ORO_NGINX_HTTPS_PORT:
       ORO_NGINX_HTTP_PORT:
       ORO_CHROME_PORT:
-      DBUS_SESSION_BUS_ADDRESS: /dev/null
+      DBUS_SESSION_BUS_ADDRESS: unix:path=/dev/null
+    tmpfs:
+      - /tmp
     healthcheck:
       test: "curl -sf http://127.0.0.1:$${ORO_CHROME_PORT}/status"
       interval: 15s
       timeout: 30s
       start_period: 240s
     restart: unless-stopped
+    depends_on:
+      "waf-behat":
+        condition: service_healthy
     volumes:
       - /dev/shm:/dev/shm
+      - var_data:/var/www/oro/var/data
 
   backup:
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
-      target: backup
       network: host
       args:
+        ORO_BASELINE_VERSION:
+        ORO_PUBLIC_PROJECT:
+        ORO_PRIVATE_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -307,23 +458,24 @@ services:
       labels:
         com.oroinc.orocloud.image_type: "init"
       extra_hosts:
-        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
     depends_on:
       "db":
         condition: service_healthy
-      "file-storage":
-        condition: service_started
 
   backup-test:
     command: -- true
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
-      target: backup
       network: host
       args:
+        ORO_BASELINE_VERSION:
+        ORO_PUBLIC_PROJECT:
+        ORO_PRIVATE_PROJECT:
         ORO_IMAGE_FROM: $ORO_IMAGE_TEST
         ORO_IMAGE_TAG:
         ORO_DB_HOST:
@@ -343,56 +495,61 @@ services:
       labels:
         com.oroinc.orocloud.image_type: "init-test"
       extra_hosts:
-        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
         - db:${DB_IP-host.docker.internal}
     depends_on:
       "db":
         condition: service_healthy
-      "file-storage":
-        condition: service_started
 
   restore:
     image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    environment:
+      ORO_ENV:
     depends_on:
-      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
     volumes:
+      - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
 
   restore-test:
     image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
     command: restore-test
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
   update:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
-    command: update
+    command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
-    env_file: .env
-    depends_on:
-      <<: *default-depends_on
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    environment:
+      ORO_ENV:
     volumes:
+      - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
-      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   update-test:
     image: $ORO_IMAGE_INIT_TEST:$ORO_IMAGE_TAG
-    command: update
+    command: script run upgrade:full:reindex
     user: $ORO_USER_RUNTIME
-    env_file: .env
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
-    depends_on:
-      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -400,14 +557,18 @@ services:
     image: $ORO_IMAGE_INIT:$ORO_IMAGE_TAG
     command: warmup-cache
     user: $ORO_USER_RUNTIME
-    env_file: .env
-    depends_on:
-      <<: *default-depends_on
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    environment:
+      ORO_ENV:
     volumes:
+      - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
+      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   db:
-    image: docker.io/oroinc/pgsql:${ORO_PG_VER}
+    image: ${ORO_PROJECT}pgsql:${ORO_PG_VER}
     labels:
       com.symfony.server.service-prefix: ORO_DB
     environment:
@@ -415,86 +576,28 @@ services:
       POSTGRES_DB: ${ORO_DB_NAME}
       POSTGRES_USER: ${ORO_DB_USER}
       POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
+    tmpfs:
+      - /var/lib/postgresql
     healthcheck:
-      test: "pg_isready -U$${POSTGRES_USER} -d$${POSTGRES_DB}"
+      test: "pg_isready -U$${ORO_DB_USER} -d$${ORO_DB_NAME}"
       start_period: 60s
     restart: unless-stopped
 
-  search-engine:
-    image: elasticsearch:${ORO_ES_VER}
-    command: bin/elasticsearch -Eingest.geoip.downloader.enabled=false
-    environment:
-      discovery.type: "single-node"
-      cluster.name: docker-cluster
-      bootstrap.memory_lock: "true"
-      network.host: 0.0.0.0
-      path.repo: "/tmp"
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
-      xpack.security.enabled: false
-      xpack.security.http.ssl.enabled: false
-      xpack.security.transport.ssl.enabled: false
-      cluster.routing.allocation.disk.threshold_enabled: false
-    labels:
-      com.symfony.server.service-prefix: ORO_SEARCH
-    healthcheck:
-      test: "curl -sfL 'http://127.0.0.1:9200/_cluster/health?pretty&wait_for_status=yellow&timeout=5s'"
-      start_period: 120s
-    restart: unless-stopped
-
-  mq:
-    image: oroinc/rabbitmq:${ORO_RMQ_VER}
-    labels:
-      com.symfony.server.service-prefix: ORO_MQ
-    volumes:
-      - ./rabbitmq/load_definitions.conf:/etc/rabbitmq/conf.d/load_definitions.conf
-      - ./rabbitmq/rmq.definitions.json:/etc/rabbitmq/rmq.definitions.json
-    healthcheck:
-      test: rabbitmq-diagnostics -q status
-      interval: 15s
-      timeout: 30s
-      start_period: 20s
-    restart: unless-stopped
-
-  session-storage:
-    image: redis:${ORO_REDIS_VER}
-    command: redis-server --bind 0.0.0.0
-    labels:
-      com.symfony.server.service-prefix: ORO_REDIS
-    healthcheck:
-      test: "[ $$(redis-cli ping) = 'PONG' ]"
-      interval: 15s
-      timeout: 30s
-      start_period: 20s
-    restart: unless-stopped
-
-  file-storage:
-    image: percona/percona-server-mongodb:${ORO_MONGO_VER}
-    environment:
-      ORO_MONGO_DATABASE:
-      ORO_MONGO_USER:
-      ORO_MONGO_PASSWORD:
-      MONGO_INITDB_ROOT_USERNAME:
-      MONGO_INITDB_ROOT_PASSWORD:
-    volumes:
-      - ./mongo/mongo.definitions.sh:/docker-entrypoint-initdb.d/mongo.definitions.sh
-    healthcheck:
-      test: echo 'db.runCommand({serverStatus:1}).ok' | mongosh admin -u $MONGO_INITDB_ROOT_USERNAME -p $MONGO_INITDB_ROOT_PASSWORD --quiet | grep 1
-      interval: 15s
-      timeout: 30s
-      start_period: 20s
-    restart: unless-stopped
-
   mail:
-    image: schickling/mailcatcher
+    image: ${ORO_PROJECT}mailcatcher
     hostname: mail
     restart: unless-stopped
 
   blackfire:
-    image: blackfire/blackfire:2
+    image: ${ORO_PROJECT}blackfire:2
     environment:
       BLACKFIRE_SERVER_ID:
       BLACKFIRE_SERVER_TOKEN:
 
 volumes:
-  cache: {}
-  multihost_operation_folder: {}
+  cache:
+  multihost_operation_folder:
+  maintenance_folder:
+  nginx:
+  nginx-waf:
+  var_data:

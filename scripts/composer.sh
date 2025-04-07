@@ -32,8 +32,8 @@ Example: COMPOSER=dev.json COMPOSER_AUTH='\"http-basic\": {\"github.com\": {\"us
 
 }
 
-BASELINE_VERSION='5.1-latest'
-ORO_DOCKER_PROJECT=${ORO_DOCKER_PROJECT-oroinc}
+BASELINE_VERSION='master-latest'
+ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 # path to application source code. Can be defined with "-s" option
 APP_SRC="$PWD"
 # path to composer repositories on local file system. Can be defined with "-r" option
@@ -102,10 +102,10 @@ done
 
 run_composer() {
     # Try to pull before manual, because --pull always fail if image not exist remotely https://github.com/moby/moby/issues/36794
-    docker image pull --quiet "$ORO_DOCKER_PROJECT/builder:$BASELINE_VERSION" || :
+    docker image pull --quiet "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" ||:
     # Run composer
     set -x
-    time docker run --rm --security-opt label=disable --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" -v "$REPO_PATH":"$REPO_PATH" -v "$APP_SRC":"$APP_SRC" -w "$APP_SRC" -e ORO_DB_VERSION $COMPOSER_VARIABLES "$ORO_DOCKER_PROJECT/builder:$BASELINE_VERSION" bash -c "set -x && composer -vvv --ansi --no-interaction --working-dir='$APP_SRC' $1" || {
+    time docker run --rm --memory=7g --security-opt label=disable --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" -v "$REPO_PATH":"$REPO_PATH" -v "$APP_SRC":"$APP_SRC" -w "$APP_SRC" -e ORO_DB_VERSION $COMPOSER_VARIABLES "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "set -x && composer -vvv --ansi --no-interaction --working-dir='$APP_SRC' $1" || {
         set +x
         echo -e "${RED}ERROR to run composer${NC}"
         exit 1

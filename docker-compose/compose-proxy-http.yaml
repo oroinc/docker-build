@@ -1,6 +1,4 @@
-version: "3.9"
-
 services:
   chrome:
     environment:
-      ORO_NGINX_HOST: web-behat
+      ORO_NGINX_HOST: web

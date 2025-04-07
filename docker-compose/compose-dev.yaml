@@ -1,0 +1,51 @@
+# add volume oro_test and rewrite oro_app as folder to all services with oro app
+services:
+  install-test:
+    volumes:
+      - oro_test:/var/www/oro
+
+  functional:
+    volumes:
+      - oro_test:/var/www/oro
+
+  behat:
+    depends_on:
+      "set-owner-test":
+        condition: service_completed_successfully
+    volumes:
+      - oro_test:/var/www/oro
+
+  chrome:
+    volumes:
+      - oro_test:/var/www/oro
+
+  set-owner-test:
+    image: $ORO_IMAGE_INIT_TEST${ORO_LANGUAGE_SUFFIX-}:${ORO_IMAGE_TAG_OLD-$ORO_IMAGE_TAG}
+    command: set-owner
+    env_file: .env
+    volumes:
+      - oro_test:/var/www/oro
+      # - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh:ro
+
+  restore-test:
+    volumes:
+      - oro_test:/var/www/oro
+
+  update-test:
+    volumes:
+      - oro_test:/var/www/oro
+
+volumes:
+  oro_app:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $ORO_DOCKER_FOLDER_PATH/oro_app
+
+  oro_test:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $ORO_DOCKER_FOLDER_PATH/oro_test

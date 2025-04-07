@@ -19,8 +19,9 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application:master-latest -f ../../docker/image/application/Dockerfile .
+docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application:master-latest -f ../../docker-build/docker/Dockerfile .
 ```
+
 ### Application test image
 Application test image allows to run behat and functional tests and services for CI:
 
@@ -36,7 +37,7 @@ Image name example: `us.gcr.io/oro-product-development/orocommerce-enterprise-ap
 
 Create image:
 ```
-docker buildx build --load --pull --rm -t us.gcr.io/oro-product-development/orocommerce-enterprise-application-test:master-latest -f ../../docker/image/application/Dockerfile-test .
+docker buildx build --load --pull --rm --build-context test="../../docker-build/docker" -t us.gcr.io/oro-product-development/orocommerce-enterprise-application-test:master-latest -f ../../docker-build/docker/Dockerfile-test .
 ```
 
 ### Application init images

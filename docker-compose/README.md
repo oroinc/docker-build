@@ -2,13 +2,11 @@
 
 Below is the configuration for docker compose and configuration files for services, in addition to `.env`, where all the variables required for the services and the application are specified.
 
-## Types of compose configuration
-1. `compose.yaml` - for the enterprise version of the application. The services used are PostgreSQL, Redis, RMQ, Elasticsearch, Mongo DB.
-1. `compose-orocommerce-application.yaml` - for the community version of the application. Only PostgreSQL is used.
+## Types of environment
+The environments for CE (Community Edition) and EE (Enterprise Edition) are different. The `ORO_CE` variable is used to select the desired environment.
+Set `ORO_CE=yes` to use the environment for CE (Community Edition). Used in conjunction with the desired application image.
 
-> **NOTE:** `compose.yaml` is used by default and should not be specified in commands. If it is necessary to use `compose-orocommerce-application.yaml`, it must be specified using the `-f` option. Example: `-f compose-orocommerce-application.yaml`
-
-This configuration allows you to perform the following actions:
+## This configuration allows you to perform the following actions:
 
 1. Install application
 1. Create init image
@@ -25,7 +23,7 @@ If you already have an init image, use it to restore data. If not, install the a
 You can use images built on CI with a PR or other branches.
 
 ## Configuration
-All configuration of scripts and applications is described using variables specified in `.env`. Additionally, the application has `.env-build` , which keeps specific settings for every application. You can also set some variables through the environment variables. In case of using `compose-orocommerce-application.yaml` configuration, `.env-orocommerce-application` is used in addition to `.env`, and has a higher priority.
+All configuration of scripts and applications is described using variables specified in `.env`. Additionally, the application has `.env-build` , which keeps specific settings for every application. You can also set some variables through the environment variables.
 
 The file contains several sections of variables:
 
@@ -34,10 +32,10 @@ The file contains several sections of variables:
 3. Variables used to configure a specific service: database, Elasticsearch, RMQ, Redis, mail, etc.
 
 ### SSL certificate
-For SSL, a special web service `proxy-behat` or `proxy` is used. Its image is `oroinc/nginx-proxy`.
-You can use your own key and certificate. To do this, they must be located along the paths `/etc/nginx/certs/webserver.crt` and `/etc/nginx/certs/webserver.key` respectively.
+For SSL, a special web service `waf-behat` or `waf` is used. For more details, [see](https://gitlab.oro.cloud/orocloud-devops/oro-cloud-docker/-/blob/master/jenkins/nginx-waf/oel8/README.md)
 If you do not have a certificate, a self-signed one will be generated for testing.
-It is possible to use a CAROOT certificate which will be used to sign a self-signed certificate. Uncomment variable CAROOT in `.env` file and point it to folder where CAROOT locate. More details can be found at https://web.dev/articles/how-to-use-local-https.
+You can use a CA ROOT certificate sign a self-signed certificate. Uncomment variable `CAROOT` in the `.env` file and point it to the folder where CA ROOT certificate and key are located. In this case CAROOT certificates will be located on the host and can be imported into the `nss` database and used in Chrome.
+For more details, see https://web.dev/articles/how-to-use-local-https.
 
 ## Actions
 
@@ -79,7 +77,7 @@ docker compose up restore-test
 
 ### Run application only web interface
 ```
-docker compose up -d web
+docker compose up -d waf
 ```
 
 ### Run application with consumer and websocket services
@@ -97,6 +95,62 @@ docker compose up -V update
 docker compose up application
 ```
 
+### Use local folder for development
+When dealing with errors, it is important to be able to quickly edit the code and test it. Editing code in a Docker instance is inconvenient because the instances are recreated every time they are launched. To address this, a special mode (ORO_DOCKER_FOLDER_MODE=dev) is available. When activated, the code is copied to folders on the host and used from there. The file owner is set to the current user, giving developers the ability to conveniently edit the code and run tests immediately.
+
+To enable this mode:
+ - Edit the `.env` file and set variables:
+```
+ORO_DOCKER_FOLDER_MODE=dev
+ORO_USER=1000
+ORO_DOCKER_FOLDER_PATH=/home/user/tmp
+```
+Where 1000 is the user ID output from the`id -u` command.
+
+ - Create two folders, `$ORO_DOCKER_FOLDER_PATH/oro_app` and `$ORO_DOCKER_FOLDER_PATH/oro_test`, into which the application will be copied. Two folders are necessary because there are two types of images used to run behat: one requires the `oro_app` folder for the application runtime image, and the other requires the `oro_test` folder for the application test images. For more details on the types of images, please refer to the `docker-build/docker/README.md` file.
+
+> **NOTE:** In order for Docker to automatically copy the code into the folder at startup, the folders must be completely empty. If the folders are not empty, copying does not occur.
+ 
+```
+mkdir -p $ORO_DOCKER_FOLDER_PATH/oro_{app,test}
+```
+
+> **NOTE:** As a result of the operation of the application and tests, some files are created where the owner is the user `www-data`. To remove such files from the host, you must use `sudo` or delete as `root`.
+
+### Enable xdebug
+
+[Xdebug](https://xdebug.org) is an extension for PHP, and provides a range of features to improve the PHP development experience.
+
+To enable the xdebug, edit the `.env` file and set variable (uncomment example):
+```
+ORO_DEBUGGER=-xdebug
+```
+
+It will include the required changes from `compose-xdebug.yaml`.
+
+You can use the `XDEBUG_CONFIG` variable to setup the required options for xdebug extension. XDebug uses port 9003 to connect to IDE.
+
+ - Install and configure in IDE:
+   - [PHPStorm](https://www.jetbrains.com/help/phpstorm/configuring-xdebug.html#integrationWithProduct)
+   - [VSCode](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) For VSCode you can use example `.vscode/launch.json`
+
+
+### Enable blackfire service
+
+To enable the blackfire debugger:
+ 
+ - Edit the `.env` file and set variables:
+```
+BLACKFIRE_SERVER_ID=XXXXXXXXX
+BLACKFIRE_SERVER_TOKEN=XXXXXXXXXXX
+```
+ 
+ - Start the `blackfire` service:
+```
+docker compose up application
+docker compose up -d blackfire
+```
+
 ### Run functional test
 > **NOTE:** To run functional tests, the application must be ready: - the `restore-test` or `install-test` action must be performed.
 
@@ -105,7 +159,7 @@ For functional and behat tests, it is possible to connect to the mysql statistic
 Mysql database, user, password must be pre-created and specified in `.env`. The necessary tables are created automatically.
 Example:
 ```
-ORO_DB_STAT_HOST=jenkins.dev.oroinc.com
+ORO_DB_STAT_HOST=jenkins-dev.dev.oroinc.com
 ORO_DB_STAT_NAME_FUNCTIONAL=dev_functional_stats
 ORO_DB_STAT_NAME_BEHAT=dev_behat_stats
 ORO_DB_STAT_USER=dev
@@ -114,7 +168,7 @@ ORO_DB_STAT_USER=dev
 ```
 
 > **NOTE:**
-build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'
+`build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'`
 
 Init functional test:
 ```
@@ -158,9 +212,12 @@ If you don't have a Mysql database or don't want to use the parallel test execut
 ORO_BEHAT_ARGS=' ' docker compose up behat
 ```
 
-After running the tests, if you need logs, junit reports, or other artifacts, you must copy them from the instance to the host:
+To run only one test:
+```
+ORO_BEHAT_ARGS='src/Tests/Behat/Features/demo_smoke_test.feature' docker compose up behat
+```
+
+After running the tests, if you need logs, junit reports, or other artifacts, you must copy them from the instance to the host (if ORO_DOCKER_FOLDER_MODE=dev is not set up):
 ```
 docker ps -a --format '{{.Names}}' -f "name=.*_.*-behat-.*" | xargs -r -I {} bash -c "docker cp {}:/var/www/oro//var/logs ."
 ```
-
-### Get statistics from mysql database

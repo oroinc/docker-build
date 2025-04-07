@@ -1,0 +1,131 @@
+# Used if set variable ORO_DEBUGGER=-xdebug
+
+x-depends_on: &default-depends_on
+  "db":
+    condition: service_healthy
+  "search-engine":
+    condition: service_healthy
+  "mq":
+    condition: service_healthy
+  "session-storage":
+    condition: service_healthy
+  "file-storage":
+    condition: service_healthy
+  "mail":
+    condition: service_started
+
+services:
+  volume-init:
+    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
+    user: root
+    command:
+      - -c
+      - |
+        find /etc -type f -ipath '*/php.d/*' -name '*xdebug.ini' -print0 2>/dev/null | xargs -0 -r sed -i '/zend_extension=xdebug/s/.*/zend_extension=xdebug.so/g'
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  restore:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  restore-test:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  install:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  install-test:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  update:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  update-test:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      <<: *default-depends_on
+      "volume-init":
+        condition: service_completed_successfully
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  operator:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  php-fpm-app:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  consumer:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  ws:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  cron:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  behat:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+  functional:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - etc-php-d:/etc/php.d/
+
+volumes:
+  etc-php-d: {}
