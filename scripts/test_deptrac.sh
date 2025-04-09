@@ -61,8 +61,8 @@ run() {
         exit 1
     fi
 
-    grep -v '<warning ' "$APP_SRC/var/logs/deptrac.xml" > "$APP_SRC/var/logs/filtered.xml"
-    mv "$APP_SRC/var/logs/filtered.xml" "$APP_SRC/var/logs/junit/deptrac.xml"
+    mkdir -p "$APP_SRC/var/logs/junit"
+    (grep -v '<warning ' "$APP_SRC/var/logs/deptrac.xml" || :) > "$APP_SRC/var/logs/junit/deptrac.xml"
 
     if grep -q '<failure' "$APP_SRC/var/logs/junit/deptrac.xml"; then
         echo -e "${RED}Deptrac check did not pass. Violations found!${NC}"
