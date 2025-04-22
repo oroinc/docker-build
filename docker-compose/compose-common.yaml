@@ -18,7 +18,7 @@ services:
         condition: service_started
 
   waf:
-    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    image: ${ORO_PROJECT}waf:$ORO_WAF_VER
     command: -m nginx
     user: nginx
     restart: unless-stopped
@@ -42,7 +42,7 @@ services:
           - ws
 
   waf-behat:
-    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    image: ${ORO_PROJECT}waf:$ORO_WAF_VER
     command: -m nginx
     user: nginx
     restart: unless-stopped
