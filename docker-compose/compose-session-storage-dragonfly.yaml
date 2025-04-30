@@ -1,0 +1,6 @@
+services:
+  session-storage:
+    image: ${ORO_PROJECT}dragonfly:${ORO_DRAGONFLY_VER}
+    labels:
+      com.symfony.server.service-prefix: ORO_REDIS
+    restart: unless-stopped
