@@ -1,6 +1,8 @@
 x-depends_on: &default-depends_on
   "db":
     condition: service_healthy
+  "session-storage":
+    condition: service_healthy
   "mail":
     condition: service_started
 

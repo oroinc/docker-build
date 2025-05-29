@@ -1,3 +1,7 @@
+include:
+  - path:
+      - compose-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}.yaml
+
 services:
   application:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
