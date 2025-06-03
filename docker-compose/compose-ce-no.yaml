@@ -15,6 +15,9 @@ x-depends_on: &default-depends_on
     condition: service_healthy
   "mail":
     condition: service_started
+  "gotenberg":
+    condition: service_healthy
+  
 
 
 services:
@@ -128,4 +131,10 @@ services:
       interval: 15s
       timeout: 30s
       start_period: 60s
+    restart: unless-stopped
+
+  gotenberg:
+    image: ${ORO_PROJECT}gotenberg:${ORO_GOTENBERG_VER}
+    healthcheck:
+      test: ["CMD", "curl", "-sfL", "http://localhost:3000/health"]
     restart: unless-stopped
