@@ -1,3 +1,4 @@
 # add volume oro_app only
 volumes:
   oro_app:
+  oro_test:
