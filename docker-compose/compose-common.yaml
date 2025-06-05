@@ -1,3 +1,7 @@
+include:
+  - path:
+      - compose-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}.yaml
+
 services:
   application:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
@@ -96,6 +100,15 @@ services:
       - .env-ce-${ORO_CE-no}
     volumes:
       - oro_app:/var/www/oro
+
+  volume-test-init:
+    image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
+    command: -- true
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    volumes:
+      - oro_test:/var/www/oro
  
   waf-init:
     image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
@@ -364,6 +377,8 @@ services:
         condition: service_started
       "chrome":
         condition: service_healthy
+      "waf-behat":
+        condition: service_healthy
     volumes:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       - var_data:/var/www/oro/var/data
@@ -395,9 +410,45 @@ services:
       "mail":
         condition: service_started
 
+  karma:
+    image: ${ORO_PUBLIC_PROJECT}/builder:$ORO_BASELINE_VERSION
+    command: npm run test -- --env=prod
+    user: $ORO_USER_RUNTIME
+    working_dir: /var/www/oro
+    env_file:
+      - .env
+      - .env-ce-${ORO_CE-no}
+    environment:
+      USE_SELENIUM_GRID: 1
+      KARMA_HOSTNAME: karma
+      KARMA_SELENIUM_HOST: karma-chrome
+    tmpfs:
+      - /tmp
+    depends_on:
+      "volume-test-init":
+        condition: service_completed_successfully
+      "karma-chrome":
+        condition: service_healthy
+    expose:
+      - ${ORO_KARMA_PORT-9876}
+    volumes:
+      - oro_test:/var/www/oro
+      - cache:/var/www/oro/var/cache
+
+  karma-chrome:
+    image: selenium/standalone-chrome:${ORO_CHROME_VER}-20250515
+    shm_size: 2gb
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: "curl -sf http://127.0.0.1:${ORO_CHROME_PORT}/status"
+    volumes:
+      - /dev/shm:/dev/shm
+
   chrome:
     image: ${ORO_PROJECT}chrome:$ORO_CHROME_VER
     command: chrome --enable-chrome-logs --allowed-ips 0.0.0.0/0 --allowed-origins=* --whitelisted-ips=""
+    shm_size: 2gb
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
@@ -419,9 +470,6 @@ services:
       timeout: 30s
       start_period: 240s
     restart: unless-stopped
-    depends_on:
-      "waf-behat":
-        condition: service_healthy
     volumes:
       - /dev/shm:/dev/shm
       - var_data:/var/www/oro/var/data
