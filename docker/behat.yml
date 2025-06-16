@@ -4,6 +4,7 @@ imports:
 default: &default
   extensions: &default_extensions
     Oro\Bundle\TestFrameworkBundle\BehatSilencingExtension\ServiceContainer\BehatSilencingExtension:
+      enabled: "@ORO_DB_STAT_ENABLED@"
       connection:
         dbname: "@ORO_DB_STAT_NAME_BEHAT@"
         user: "@ORO_DB_STAT_USER@"

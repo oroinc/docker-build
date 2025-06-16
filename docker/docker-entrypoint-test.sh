@@ -189,7 +189,7 @@ elif [[ "$1" == 'behat-init' ]]; then # Used for create DB with statistics and f
             else
                 NGINX_PORT=":$NGINX_PORT"
             fi
-            sed "/wd_host:/s|wd_host:.*|wd_host: 'http://$ORO_CHROME_HOST:$ORO_CHROME_PORT'|g; s|@ORO_APP_DOMAIN@|$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/|g; s|@BUILD_URL@|$BUILD_URL|g; s|@ARTIFACT_DIR@|$ORO_ARTIFACT_DIR|g; s|@ORO_APP_FOLDER@|$ORO_APP_FOLDER|g; s|@ORO_DB_STAT_NAME_BEHAT@|$ORO_DB_STAT_NAME_BEHAT|g; s|@ORO_DB_STAT_USER@|$ORO_DB_STAT_USER|g; s|@ORO_DB_STAT_PASSWORD@|$ORO_DB_STAT_PASSWORD|g; s|@ORO_DB_STAT_HOST@|$ORO_DB_STAT_HOST|g" "$APP_FOLDER/behat_oro.yml" >"$APP_FOLDER/var/logs/behat/behat.yml"
+            sed "/wd_host:/s|wd_host:.*|wd_host: 'http://$ORO_CHROME_HOST:$ORO_CHROME_PORT'|g; s|@ORO_APP_DOMAIN@|$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/|g; s|@BUILD_URL@|$BUILD_URL|g; s|@ARTIFACT_DIR@|$ORO_ARTIFACT_DIR|g; s|@ORO_APP_FOLDER@|$ORO_APP_FOLDER|g; s|@ORO_DB_STAT_ENABLED@|$ORO_DB_STAT_ENABLED|g; s|@ORO_DB_STAT_NAME_BEHAT@|$ORO_DB_STAT_NAME_BEHAT|g; s|@ORO_DB_STAT_USER@|$ORO_DB_STAT_USER|g; s|@ORO_DB_STAT_PASSWORD@|$ORO_DB_STAT_PASSWORD|g; s|@ORO_DB_STAT_HOST@|$ORO_DB_STAT_HOST|g" "$APP_FOLDER/behat_oro.yml" >"$APP_FOLDER/var/logs/behat/behat.yml"
         fi
         _note "List features from behat:"
         set -x
@@ -225,7 +225,7 @@ elif [[ "$1" == 'behat' ]]; then
             NGINX_PORT=":$NGINX_PORT"
         fi
         ORO_ARTIFACT_DIR=${ORO_ARTIFACT_DIR-'behat/'}
-        sed "/wd_host:/s|wd_host:.*|wd_host: 'http://$ORO_CHROME_HOST:$ORO_CHROME_PORT'|g; s|@ORO_APP_DOMAIN@|$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/|g; s|@BUILD_URL@|$BUILD_URL|g; s|@ARTIFACT_DIR@|$ORO_ARTIFACT_DIR|g; s|@ORO_APP_FOLDER@|$ORO_APP_FOLDER|g; s|@ORO_DB_STAT_NAME_BEHAT@|$ORO_DB_STAT_NAME_BEHAT|g; s|@ORO_DB_STAT_USER@|$ORO_DB_STAT_USER|g; s|@ORO_DB_STAT_PASSWORD@|$ORO_DB_STAT_PASSWORD|g; s|@ORO_DB_STAT_HOST@|$ORO_DB_STAT_HOST|g" "$APP_FOLDER/behat_oro.yml" >"$APP_FOLDER/var/logs/behat/behat.yml"
+        sed "/wd_host:/s|wd_host:.*|wd_host: 'http://$ORO_CHROME_HOST:$ORO_CHROME_PORT'|g; s|@ORO_APP_DOMAIN@|$ORO_APP_PROTOCOL://$ORO_APP_DOMAIN${NGINX_PORT}/|g; s|@BUILD_URL@|$BUILD_URL|g; s|@ARTIFACT_DIR@|$ORO_ARTIFACT_DIR|g; s|@ORO_APP_FOLDER@|$ORO_APP_FOLDER|g; s|@ORO_DB_STAT_ENABLED@|$ORO_DB_STAT_ENABLED|g; s|@ORO_DB_STAT_NAME_BEHAT@|$ORO_DB_STAT_NAME_BEHAT|g; s|@ORO_DB_STAT_USER@|$ORO_DB_STAT_USER|g; s|@ORO_DB_STAT_PASSWORD@|$ORO_DB_STAT_PASSWORD|g; s|@ORO_DB_STAT_HOST@|$ORO_DB_STAT_HOST|g" "$APP_FOLDER/behat_oro.yml" >"$APP_FOLDER/var/logs/behat/behat.yml"
     fi
     # Install CAROOT certificate to Firefox and/or Chrome/Chromium trust store
     # TODO: Add home folder for www-data
