@@ -3,6 +3,14 @@ imports:
 
 default: &default
   extensions: &default_extensions
+    Oro\Bundle\TestFrameworkBundle\BehatSilencingExtension\ServiceContainer\BehatSilencingExtension:
+      enabled: "@ORO_DB_STAT_ENABLED@"
+      connection:
+        dbname: "@ORO_DB_STAT_NAME_BEHAT@"
+        user: "@ORO_DB_STAT_USER@"
+        password: "@ORO_DB_STAT_PASSWORD@"
+        host: "@ORO_DB_STAT_HOST@"
+        driver: pdo_mysql
     Oro\Bundle\TestFrameworkBundle\Behat\ServiceContainer\OroTestFrameworkExtension:
       artifacts:
         handlers:

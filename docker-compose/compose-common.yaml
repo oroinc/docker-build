@@ -339,6 +339,7 @@ services:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
+      ORO_DB_STAT_ENABLED:
       ORO_DB_STAT_HOST:
       ORO_DB_STAT_PASSWORD:
       TESTS_LIST:
@@ -360,6 +361,7 @@ services:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
+      ORO_DB_STAT_ENABLED:
       ORO_DB_STAT_HOST:
       ORO_DB_STAT_PASSWORD:
       ORO_BEHAT_TAGS:
