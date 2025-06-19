@@ -68,3 +68,20 @@ DIR_DIFF=. FILE_DIFF=diff_file.txt ../../docker-build/scripts/test_php-cs-fixer.
 ```
 **Note:** The results of tests are in docker instance. You can copy it to host from instance.
 
+### `test_behat_wiring_cs.sh`
+This script runs a Code Style (CS) check for Behat .feature files. It filters the relevant feature files and runs a CS validation checkup.
+```bash
+../../docker-build/scripts/test_behat_wiring_cs.sh -b master-latest
+```
+
+### `test_javascript_eslint.sh`
+This script performs ESLint analysis on JavaScript files located in Oro bundles.
+```bash
+../../docker-build/scripts/test_javascript_eslint.sh -b master-latest
+```
+
+### `test_javascript_stylelint.sh`
+This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore.
+```bash
+../../docker-build/scripts/test_javascript_stylelint.sh -b master-latest
+```
