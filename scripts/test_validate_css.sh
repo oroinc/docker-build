@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 
 help() {
     local OPTIONS_SPEC="
-$PROGNAME is a wrapper for running SCSS stylelint checkup
+$PROGNAME is a wrapper for validating compiled CSS files using Stylelint.
 
 $PROGNAME [options]
 

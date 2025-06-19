@@ -73,3 +73,28 @@ This script executes Deptrac to analyze dependencies in PHP files specified in t
 ```bash
 ../../docker-build/scripts/test_deptrac.sh -b master-latest
 ```
+
+### `test_behat_wiring_cs.sh`
+This script runs a Code Style (CS) check for Behat .feature files. It filters the relevant feature files and runs a CS validation checkup.
+```bash
+../../docker-build/scripts/test_behat_wiring_cs.sh -b master-latest
+```
+
+### `test_javascript_eslint.sh`
+This script performs ESLint analysis on JavaScript files located in Oro bundles.
+```bash
+../../docker-build/scripts/test_javascript_eslint.sh -b master-latest
+```
+
+### `test_javascript_stylelint.sh`
+This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore.
+```bash
+../../docker-build/scripts/test_javascript_stylelint.sh -b master-latest
+```
+
+### `test_validate_css.sh`
+This script runs CSS validation using Stylelint for compiled assets.
+It builds the frontend with Webpack in production mode and then lints the resulting CSS files.
+```bash
+../../docker-build/scripts/test_validate_css.sh -b master-latest
+```
