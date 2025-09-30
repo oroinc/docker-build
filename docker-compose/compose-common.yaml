@@ -109,11 +109,11 @@ services:
       - .env-ce-${ORO_CE-no}
     volumes:
       - oro_test:/var/www/oro
- 
+
   waf-init:
     image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
     entrypoint: bash
-    command: 
+    command:
       - -c
       - |
         sed -i 's/1024/0/g' /variables.schema.json
@@ -414,7 +414,7 @@ services:
 
   karma:
     image: ${ORO_PUBLIC_PROJECT}/builder:$ORO_BASELINE_VERSION
-    command: npm run test -- --env=prod
+    command: pnpm run test --env=prod
     user: $ORO_USER_RUNTIME
     working_dir: /var/www/oro
     env_file:
