@@ -109,11 +109,11 @@ services:
       - .env-ce-${ORO_CE-no}
     volumes:
       - oro_test:/var/www/oro
- 
+
   waf-init:
-    image: ${ORO_PROJECT}nginx-waf-oel8:$ORO_WAF_VER
+    image: ${ORO_PROJECT}waf:$ORO_WAF_VER
     entrypoint: bash
-    command: 
+    command:
       - -c
       - |
         sed -i 's/1024/0/g' /variables.schema.json
@@ -400,7 +400,7 @@ services:
       ORO_APP_PROTOCOL:
       ORO_APP_DOMAIN:
       ORO_APP_ADDON_DOMAINS:
-      ORO_NGINX_HOST: ''
+      ORO_NGINX_HOST: ""
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
