@@ -1,10 +1,13 @@
 include:
-  - path: 
-    - compose-common.yaml
-    - compose-ce-${ORO_CE-no}.yaml
-    - compose-proxy-${ORO_APP_PROTOCOL}.yaml
-    - compose-${ORO_DOCKER_FOLDER_MODE:-prod}.yaml
-    - compose${ORO_DEBUGGER}.yaml
+  - path:
+      - compose-common.yaml
+      - compose-file-storage-${ORO_FILE_STORAGE_SERVICE:-mongo}.yaml
+      - compose-${ORO_SEARCH_SERVICE:-es}.yaml
+      - compose-${ORO_MQ_SERVICE:-rmq}.yaml
+      - compose-${ORO_PDF_CONVERSION_SERVICE:-gotenberg}.yaml
+      - compose-proxy-${ORO_APP_PROTOCOL}.yaml
+      - compose-${ORO_DOCKER_FOLDER_MODE:-prod}.yaml
+      - compose${ORO_DEBUGGER}.yaml
     env_file:
-    - .env
-    - .env-ce-${ORO_CE-no}
+      - .env
+      - .env-ce-${ORO_CE:-no}

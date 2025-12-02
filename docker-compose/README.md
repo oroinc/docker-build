@@ -6,6 +6,26 @@ Below is the configuration for docker compose and configuration files for servic
 The environments for CE (Community Edition) and EE (Enterprise Edition) are different. The `ORO_CE` variable is used to select the desired environment.
 Set `ORO_CE=yes` to use the environment for CE (Community Edition). Used in conjunction with the desired application image.
 
+Additionally, you can configure which optional services will be enabled and which implementation to use by setting service variables. These variables affect which include files are used (for example: compose-file-storage-${ORO_FILE_STORAGE:-mongo}.yaml, compose-${ORO_MQ_SERVICE:-rmq}.yaml, etc.).
+Examples:
+
+Enable services for Enterprise Edition (enabled by default)
+```
+ORO_FILE_STORAGE_SERVICE=mongo
+ORO_MQ_SERVICE=rmq
+ORO_PDF_CONVERSION_SERVICE=gotenberg
+ORO_SEARCH_SERVICE=es
+```
+
+Enable and disable services for Community Edition
+```
+ORO_FILE_STORAGE_SERVICE=file
+ORO_MQ_SERVICE=no
+ORO_PDF_CONVERSION_SERVICE=no
+ORO_SEARCH_SERVICE=no
+```
+
+
 ## This configuration allows you to perform the following actions:
 
 1. Install application

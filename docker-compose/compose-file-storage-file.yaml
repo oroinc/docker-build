@@ -1,0 +1,67 @@
+x-volumes_file_storage: &default-volumes_file_storage
+  - public_storage:/var/www/oro/public/media
+  - private_storage:/var/www/oro/var/data
+
+services:
+  web:
+    volumes: *default-volumes_file_storage
+
+  web-init:
+    command:
+      - -c
+      - |
+        /usr/local/bin/docker-entrypoint.sh nginx-init && sed -i '/gridfs/d; /mongo/d' /opt/oro-nginx/etc/sites-available/*.conf
+
+  php-fpm-app:
+    volumes: *default-volumes_file_storage
+
+  ws:
+    volumes: *default-volumes_file_storage
+
+  consumer:
+    volumes: *default-volumes_file_storage
+
+  cron:
+    volumes: *default-volumes_file_storage
+
+  operator:
+    volumes: *default-volumes_file_storage
+
+  install:
+    volumes: *default-volumes_file_storage
+
+  install-test:
+    volumes: *default-volumes_file_storage
+
+  functional:
+    volumes: *default-volumes_file_storage
+
+  behat:
+    volumes: *default-volumes_file_storage
+
+  restore:
+    volumes: *default-volumes_file_storage
+
+  restore-test:
+    volumes: *default-volumes_file_storage
+
+  update:
+    volumes: *default-volumes_file_storage
+
+  update-test:
+    volumes: *default-volumes_file_storage
+
+  warmup-cache:
+    volumes: *default-volumes_file_storage
+
+  backup:
+    build:
+      target: backup-files
+
+  backup-test:
+    build:
+      target: backup-files
+
+volumes:
+  public_storage: {}
+  private_storage: {}

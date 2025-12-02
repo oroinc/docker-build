@@ -1,0 +1,76 @@
+x-depends_on_file_storage: &default-depends_on_file_storage
+  "file-storage":
+    condition: service_healthy
+
+services:
+  php-fpm-app:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  install:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  install-test:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  functional:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  behat-init:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  behat:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  restore:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  restore-test:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  update:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  update-test:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  warmup-cache:
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  backup:
+    build:
+      target: backup
+      extra_hosts:
+        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  backup-test:
+    build:
+      target: backup
+      extra_hosts:
+        - file-storage:${FILE_STORAGE_IP-host.docker.internal}
+    depends_on:
+      <<: *default-depends_on_file_storage
+
+  file-storage:
+    image: ${ORO_PROJECT}percona-server-mongodb:${ORO_MONGO_VER}
+    env_file: .env-ce-no
+    tmpfs:
+      - /data
+    volumes:
+      - ./mongo/mongo.definitions.sh:/docker-entrypoint-initdb.d/mongo.definitions.sh
+    healthcheck:
+      test: mongosh --eval "db.hello().isWritablePrimary" --quiet
+      start_period: 120s
+    restart: unless-stopped
