@@ -1,3 +1,11 @@
+x-depends_on: &default-depends_on
+  "db":
+    condition: service_healthy
+  "session-storage":
+    condition: service_healthy
+  "mail":
+    condition: service_started
+
 include:
   - path:
       - compose-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}.yaml
@@ -166,6 +174,7 @@ services:
     tmpfs:
       - /tmp
     depends_on:
+      <<: *default-depends_on
       "volume-init":
         condition: service_completed_successfully
     volumes:
@@ -273,6 +282,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_SAMPLE_DATA:
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -286,6 +297,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -323,6 +336,8 @@ services:
       ORO_ENV: test
     tmpfs:
       - /tmp
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
@@ -347,6 +362,8 @@ services:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
       ORO_ENV:
+    depends_on:
+      <<: *default-depends_on
 
   behat:
     image: $ORO_IMAGE_TEST:$ORO_IMAGE_TAG
@@ -381,6 +398,7 @@ services:
         condition: service_healthy
       "waf-behat":
         condition: service_healthy
+      <<: *default-depends_on
     volumes:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       - var_data:/var/www/oro/var/data
@@ -562,6 +580,7 @@ services:
     depends_on:
       "volume-init":
         condition: service_completed_successfully
+      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -575,6 +594,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -587,6 +608,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV:
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
@@ -600,6 +623,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV: test
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - cache:/var/www/oro/var/cache
 
@@ -612,6 +637,8 @@ services:
       - .env-ce-${ORO_CE-no}
     environment:
       ORO_ENV:
+    depends_on:
+      <<: *default-depends_on
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
