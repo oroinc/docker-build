@@ -97,14 +97,19 @@ run() {
         exit 0
     fi
     mkdir -p "$LOGS/static_analysis"
-    # use diff for check if it's baranch or PR
-    if [[ -e "$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml" && -e "$LOGS/$FILE_DIFF" ]]; then
+    # Select PHPCS standard based on available config files
+    if [[ -e "$APP_SRC/$BUILD_CONFIG/phpcs.xml" ]]; then
+        STANDARD="$APP_SRC/$BUILD_CONFIG/phpcs.xml"
+        EXTRA_ARGS="--runtime-set installed_paths '$APP_SRC/$BUILD_CONFIG'"
+    elif [[ -e "$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml" ]]; then
         STANDARD="$APP_SRC/$BUILD_CONFIG/Oro/phpcs.xml"
+        EXTRA_ARGS=""
     else
         STANDARD="${ORO_CS_STANDARD-PSR2}"
+        EXTRA_ARGS=""
     fi
     set -x
-    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.cs2.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/phpcs' {} -p --encoding=utf-8 --extensions=php --standard='$STANDARD' --report=checkstyle --report-file='$APP_SRC/var/logs/static_analysis/phpcs_{#}.xml'\"" || {
+    docker run --pull always --security-opt label=disable --tmpfs /tmp --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}":ro -v "$WORKDIR":"$WORKDIR" -v "$APP_SRC":"$APP_SRC" -v "$LOGS":"$APP_SRC/var/logs" -w "$ORO_APP_FOLDER" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "time parallel --no-notice --gnu -k --lb --env _ --xargs --joblog '$APP_SRC/var/logs/parallel.cs2.log' -a '$APP_SRC/var/logs/$DIFF_PHP' \"'$APP_SRC/bin/phpcs' {} -p --encoding=utf-8 --extensions=php $EXTRA_ARGS --standard='$STANDARD' --report=checkstyle --report-file='$APP_SRC/var/logs/static_analysis/phpcs_{#}.xml'\"" || {
         echo -e "${RED}ERROR to run phpcs${NC}"
         exit 1
     }
