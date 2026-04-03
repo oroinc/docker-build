@@ -24,7 +24,7 @@ Supported environment variables:
     echo "$OPTIONS_SPEC"
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='7.0-latest'
 APP_SRC="$PWD"
 WORKDIR=''
 FILE_DIFF="diff.txt"

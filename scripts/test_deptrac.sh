@@ -27,7 +27,7 @@ BUILD_CONFIG           folder where deptrac config is located. Default is vendor
     echo "$OPTIONS_SPEC"
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='7.0-latest'
 APP_SRC="$PWD"
 ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"

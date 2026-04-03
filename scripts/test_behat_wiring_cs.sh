@@ -24,7 +24,7 @@ Supported environment variables:
     echo "$OPTIONS_SPEC"
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='7.0-latest'
 APP_SRC="$PWD"
 WORKDIR=''
 DIFF_FEATURE="diff_behat_wiring_cs.txt"

@@ -31,7 +31,7 @@ FILE_DIFF               diff file name with list of changed files. Without it or
 
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='7.0-latest'
 APP_SRC="$PWD"
 ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 WORKDIR=''

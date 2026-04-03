@@ -30,7 +30,7 @@ ORO_TESTS_PATH         folder for search unit tests. Default is vendor/oro
 
 }
 
-BASELINE_VERSION='master-latest'
+BASELINE_VERSION='7.0-latest'
 APP_SRC="$PWD"
 ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
 ORO_TESTS_PATH="${ORO_TESTS_PATH:-vendor/oro}"
