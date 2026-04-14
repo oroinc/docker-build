@@ -660,7 +660,7 @@ services:
       start_period: 60s
     restart: unless-stopped
     volumes:
-      - ./postgres:/docker-entrypoint-initdb.d:ro
+      - ./postgres/uuid-ossp.sql:/docker-entrypoint-initdb.d/uuid-ossp.sql:ro
 
   mail:
     image: ${ORO_PROJECT}mailcatcher
