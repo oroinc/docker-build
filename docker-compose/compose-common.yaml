@@ -656,7 +656,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     healthcheck:
-      test: "pg_isready -U$${ORO_DB_USER} -d$${ORO_DB_NAME}"
+      test: "pg_isready -U${ORO_DB_USER} -d${ORO_DB_NAME}"
       start_period: 60s
     restart: unless-stopped
     volumes:
