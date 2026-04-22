@@ -645,7 +645,7 @@ services:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   db:
-    image: ${ORO_PROJECT}pgsql:${ORO_PG_VER}
+    image: ${ORO_PROJECT}postgis:${ORO_PG_VER}
     labels:
       com.symfony.server.service-prefix: ORO_DB
     environment:
@@ -656,9 +656,11 @@ services:
     tmpfs:
       - /var/lib/postgresql
     healthcheck:
-      test: "pg_isready -U$${ORO_DB_USER} -d$${ORO_DB_NAME}"
+      test: "pg_isready -U${ORO_DB_USER} -d${ORO_DB_NAME}"
       start_period: 60s
     restart: unless-stopped
+    volumes:
+      - ./postgres/uuid-ossp.sql:/docker-entrypoint-initdb.d/uuid-ossp.sql:ro
 
   mail:
     image: ${ORO_PROJECT}mailcatcher
