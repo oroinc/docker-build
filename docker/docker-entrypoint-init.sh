@@ -48,7 +48,9 @@ restore_pg_db() {
     if [[ "X$ORO_DB_ROOT_USER" == "X" ]]; then
         DB_USER_O="--user=$ORO_DB_USER"
     fi
-    ORO_TABLES_NUM=$($PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -t -c "SELECT count(table_name) FROM information_schema.tables WHERE table_schema = 'public';")
+    ORO_TABLES_NUM=$($PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -t -c "SELECT count(table_name) FROM information_schema.tables WHERE table_schema = 'public';") || _error "Can't inspect PostgreSQL schema state"
+    ORO_TABLES_NUM=$(printf '%s' "$ORO_TABLES_NUM" | tr -d '[:space:]')
+    [[ "$ORO_TABLES_NUM" =~ ^[0-9]+$ ]] || _error "Can't determine PostgreSQL table count"
     if [ "$ORO_TABLES_NUM" -eq 0 ]; then
         _note "Restore dump from file: $DB_FILE to: $ORO_DB_NAME"
         [[ $ORO_ENTRYPOINT_QUIET ]] || set -x

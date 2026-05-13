@@ -28,16 +28,74 @@ _error() {
 termHandler() {
     set +x
     local TESTPATH
+    local TESTID
     TESTPATH=$2
+    TESTID=$3
     _note "Received TERM signal. Stopping $1 test $TESTPATH"
     # pgrep -f bin/behat | xargs -r kill
 
     if [[ "X$1" == 'Xbehat' && "X$TESTPATH" != 'X' ]]; then
-        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        if [[ "X$TESTID" != 'X' ]]; then
+            MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = NULL WHERE id = '$TESTID' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        else
+            MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        fi
     elif [[ "X$1" == 'Xfunctional' && "X$TESTPATH" != 'X' ]]; then
         MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "UPDATE functional_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     fi
     exit 143
+}
+
+_update_priority_time() {
+    local db_name="$1"
+    local table_name="$2"
+    local build_tag="$3"
+
+    # Wrap the aggregate in an extra derived table so MySQL materializes it and
+    # does not reject the self-reference with ERROR 1093 during the UPDATE.
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 "$db_name" -BNe "UPDATE ${table_name} AS t1 LEFT JOIN (SELECT aggregated.path, aggregated.priority_time FROM (SELECT path, MAX(time) AS priority_time FROM ${table_name} WHERE time IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY path) AS aggregated) AS t2 ON t2.path = t1.path SET t1.priority_time = COALESCE(t2.priority_time, 0) WHERE t1.build_tag = '${build_tag}' AND t1.time IS NULL;" 2>>"${APP_FOLDER:-${ORO_APP_FOLDER-/var/www/oro}}/var/logs/mysql_stat_errors.txt"
+}
+
+_get_pending_order_clause() {
+    printf '%s' "t1.priority_time DESC, t1.id ASC"
+}
+
+_get_pending_tests_query() {
+    local table_name="$1"
+    local build_tag="$2"
+    local order_clause
+
+    order_clause=$(_get_pending_order_clause)
+    printf "SELECT t1.path as path FROM %s AS t1 FORCE INDEX (IDX_BUILD_TAG_TIME_PRIORITY) WHERE t1.build_tag = '%s' AND t1.time IS NULL ORDER BY %s;" "$table_name" "$build_tag" "$order_clause"
+}
+
+_get_claim_test_query() {
+    local table_name="$1"
+    local build_tag="$2"
+    local order_clause
+
+    order_clause=$(_get_pending_order_clause)
+    printf "START TRANSACTION; SELECT @P := t1.path FROM %s AS t1 FORCE INDEX (IDX_BUILD_TAG_TIME_PRIORITY) WHERE t1.build_tag = '%s' AND t1.time IS NULL ORDER BY %s LIMIT 1 FOR UPDATE SKIP LOCKED; UPDATE %s SET time = '0' WHERE build_tag = '%s' AND path = @P; COMMIT;" "$table_name" "$build_tag" "$order_clause" "$table_name" "$build_tag"
+}
+
+_get_claim_behat_test_query() {
+    local build_tag="$1"
+    local order_clause
+
+    order_clause=$(_get_pending_order_clause)
+    # Claim one concrete behat row and return its id, path, scheduled attempt,
+    # and materialized priority. Retry inserts must reuse the claimed priority
+    # value so MySQL does not read from behat_stat while inserting into it.
+    printf "START TRANSACTION; SET @ID := NULL, @P := NULL, @A := NULL, @PT := NULL; SELECT t1.id, t1.path, COALESCE(t1.attempt, 1), COALESCE(t1.priority_time, 0) INTO @ID, @P, @A, @PT FROM behat_stat AS t1 FORCE INDEX (IDX_BUILD_TAG_TIME_PRIORITY) WHERE t1.build_tag = '%s' AND t1.time IS NULL ORDER BY %s LIMIT 1 FOR UPDATE SKIP LOCKED; UPDATE behat_stat SET time = '0' WHERE id = @ID; SELECT @ID, @P, @A, @PT WHERE @ID IS NOT NULL; COMMIT;" "$build_tag" "$order_clause"
+}
+
+_get_total_time_query() {
+    local table_name="$1"
+    local build_tag="$2"
+
+    # Force IDX_PATH_CREATED for the historical join. On large retained stats tables,
+    # the optimizer can otherwise choose the path-only unique index and regress badly.
+    printf "SELECT IFNULL(ROUND(SUM(t1.avg_time)), 0) AS time FROM (SELECT t2.path, AVG(t2.time) AS avg_time FROM (SELECT DISTINCT t0.path FROM %s AS t0 WHERE t0.build_tag = '%s') AS current_paths INNER JOIN %s AS t2 FORCE INDEX (IDX_PATH_CREATED) ON t2.path = current_paths.path WHERE t2.time IS NOT NULL AND t2.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY t2.path) AS t1;" "$table_name" "$build_tag" "$table_name"
 }
 
 if [ "${1:0:1}" = '-' ]; then
@@ -61,14 +119,15 @@ elif [[ "$1" == 'functional-get-tests-number' ]]; then # Used to get tests numbe
     exit 0
 elif [[ "$1" == 'functional-get-stat' ]]; then # Used for get execution time all tests
     # Get execution time for all test. Then divide it to required time and get number nodes
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "SELECT IFNULL(ROUND(SUM(t1.time)), 0) AS time FROM (SELECT AVG(time) AS time FROM functional_stat WHERE time IS NOT NULL AND DATE(created_at) > (NOW() - INTERVAL 7 DAY) AND path IN (SELECT path FROM functional_stat WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' ) GROUP BY path) as t1;" 2>/dev/null
+    STAT_QUERY=$(_get_total_time_query 'functional_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "$STAT_QUERY" 2>/dev/null
     exit 0
 elif [[ "$1" == 'functional-init' ]]; then # Used for create DB with statistics and fill tests
     _note "Use host=$ORO_DB_STAT_HOST dbname=$ORO_DB_STAT_NAME_FUNCTIONAL build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
     # Create DB and tables. Need it if run local and use local DB for statistics
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 -Be "create database IF NOT EXISTS $ORO_DB_STAT_NAME_FUNCTIONAL"
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -Be "CREATE TABLE IF NOT EXISTS functional_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100)), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL)"
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 -Be "create database IF NOT EXISTS $ORO_DB_STAT_NAME_FUNCTIONAL" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -Be "CREATE TABLE IF NOT EXISTS functional_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100)), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL, priority_time INT(10) DEFAULT NULL, KEY IDX_BUILD_TAG_TIME_PRIORITY (build_tag, time, priority_time DESC, id ASC), KEY IDX_PATH_CREATED (path(255), created_at))" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     # By default mysql not allow use local infile. Check this and enable. For enable use root user.
     LOCAL_INFILE=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "SELECT @@GLOBAL.local_infile;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt")
     if [[ "X$LOCAL_INFILE" != "X1" ]]; then
@@ -87,9 +146,11 @@ elif [[ "$1" == 'functional-init' ]]; then # Used for create DB with statistics 
     fi
     _note "List tests:"
     echo "$TESTS_LIST"
-    echo "$TESTS_LIST" | xargs -r -n1 | sort -u | grep -E -v $EXCLUDED_TESTS - | xargs -r -I{} echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE functional_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag) ;"
+    echo "$TESTS_LIST" | xargs -r -n1 | sort -u | grep -E -v $EXCLUDED_TESTS - | xargs -r -I{} echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE functional_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    _update_priority_time "$ORO_DB_STAT_NAME_FUNCTIONAL" 'functional_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update functional priority for build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     _note "List tests from DB:"
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "SELECT t1.path as path FROM functional_stat AS t1 WHERE t1.build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND t1.time IS NULL ORDER BY (SELECT MAX(t2.time) FROM functional_stat AS t2 WHERE t2.path=t1.path AND DATE(created_at) > (NOW() - INTERVAL 7 DAY)) DESC;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    LIST_QUERY=$(_get_pending_tests_query 'functional_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "$LIST_QUERY" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     popd >/dev/null 2>&1 || _error "Can't back from folder $APP_FOLDER"
     exit 0
 elif [[ "$1" == 'functional' ]]; then
@@ -100,9 +161,10 @@ elif [[ "$1" == 'functional' ]]; then
     if [[ "X$ORO_FUNCTIONAL_ARGS" == "X" ]]; then
         mkdir -p "$APP_FOLDER"/var/logs/{junit,functional}
         _note "Use host=$ORO_DB_STAT_HOST dbname=$ORO_DB_STAT_NAME_FUNCTIONAL build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        CLAIM_TEST_QUERY=$(_get_claim_test_query 'functional_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
         # In cycle get next test name for run.
         while true; do
-            TESTPATH=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=50 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "START TRANSACTION; SELECT @P := t1.path FROM functional_stat AS t1 WHERE t1.build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND t1.time IS NULL ORDER BY (SELECT MAX(t2.time) FROM functional_stat AS t2 WHERE t2.path=t1.path AND DATE(created_at) > (NOW() - INTERVAL 7 DAY)) DESC LIMIT 1 FOR UPDATE SKIP LOCKED; UPDATE functional_stat SET time = '0' WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = @P; COMMIT;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't get test path with build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+            TESTPATH=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=50 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "$CLAIM_TEST_QUERY" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't get test path with build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
             # Check if have test for run. And exit if empty
             [[ "X$TESTPATH" == 'X' ]] && break
             trap 'termHandler functional $TESTPATH' SIGTERM
@@ -154,14 +216,15 @@ elif [[ "$1" == 'behat-get-tests-number' ]]; then # Used to get tests number for
     exit 0
 elif [[ "$1" == 'behat-get-stat' ]]; then # Used for get execution time all tests
     # Get execution time for all test. Then divide it to required time and get number nodes
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "SELECT IFNULL(ROUND(SUM(t1.time)), 0) AS time FROM (SELECT AVG(time) AS time FROM behat_stat WHERE time IS NOT NULL AND DATE(created_at) > (NOW() - INTERVAL 7 DAY) AND path IN (SELECT path FROM behat_stat WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' ) GROUP BY path) as t1;" 2>/dev/null
+    STAT_QUERY=$(_get_total_time_query 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "$STAT_QUERY" 2>/dev/null
     exit 0
 elif [[ "$1" == 'behat-init' ]]; then # Used for create DB with statistics and fill tests
     APP_FOLDER=${ORO_APP_FOLDER-/var/www/oro}
     _note "Use host=$ORO_DB_STAT_HOST dbname=$ORO_DB_STAT_NAME_BEHAT build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     # Create DB and tables. Need it if run local and use local DB for statistics
     MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 -Be "create database IF NOT EXISTS $ORO_DB_STAT_NAME_BEHAT" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "CREATE TABLE IF NOT EXISTS behat_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100), attempt), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL, attempt INT(8) DEFAULT NULL)" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "CREATE TABLE IF NOT EXISTS behat_stat (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id), path varchar(1024) COLLATE utf8_unicode_ci DEFAULT NULL, build_tag varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL, UNIQUE KEY IDX_FUNC_BUILD_TAG (path(500), build_tag(100), attempt), created_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, time INT(10) DEFAULT NULL, priority_time INT(10) DEFAULT NULL, attempt INT(8) DEFAULT NULL, KEY IDX_BUILD_TAG_TIME_PRIORITY (build_tag, time, priority_time DESC, id ASC), KEY IDX_PATH_CREATED (path(255), created_at))" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     # By default mysql not allow use local infile. Check this and enable. For enable use root user.
     LOCAL_INFILE=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "SELECT @@GLOBAL.local_infile;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt")
     if [[ "X$LOCAL_INFILE" != "X1" ]]; then
@@ -199,8 +262,10 @@ elif [[ "$1" == 'behat-init' ]]; then # Used for create DB with statistics and f
     else
         echo "$TESTS_LIST" | xargs -r -n1 | sort -u | xargs -r -i echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE behat_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     fi
+    _update_priority_time "$ORO_DB_STAT_NAME_BEHAT" 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update behat priority for build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     _note "List features from DB:"
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "SELECT t1.path as path FROM behat_stat AS t1 WHERE t1.build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND t1.time IS NULL ORDER BY (SELECT MAX(t2.time) FROM behat_stat AS t2 WHERE t2.path=t1.path AND DATE(created_at) > (NOW() - INTERVAL 7 DAY)) DESC;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+    LIST_QUERY=$(_get_pending_tests_query 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "$LIST_QUERY" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     popd >/dev/null 2>&1 || _error "Can't back from folder $APP_FOLDER"
     # wait to prevent quick exit and second run
     sleep 15
@@ -242,13 +307,19 @@ elif [[ "$1" == 'behat' ]]; then
     # trap 'copy_logs $APP_FOLDER' EXIT INT TERM
     if [[ "X$ORO_BEHAT_ARGS" == "X" ]]; then
         _note "Use host=$ORO_DB_STAT_HOST dbname=$ORO_DB_STAT_NAME_BEHAT build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        CLAIM_TEST_QUERY=$(_get_claim_behat_test_query "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
         # In cycle get next test name for run.
         while :; do
-            TESTPATH=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=50 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "START TRANSACTION; SELECT @P := t1.path FROM behat_stat AS t1 WHERE t1.build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND t1.time IS NULL ORDER BY (SELECT MAX(t2.time) FROM behat_stat AS t2 WHERE t2.path=t1.path AND DATE(created_at) > (NOW() - INTERVAL 7 DAY)) DESC LIMIT 1 FOR UPDATE SKIP LOCKED; UPDATE behat_stat SET time = '0' WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = @P; COMMIT;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't get test path with build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
+            CLAIM_RESULT=$(MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=50 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "$CLAIM_TEST_QUERY" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't get test path with build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
             # Check if have test for run. And exit if empty
-            [[ "X$TESTPATH" == 'X' ]] && break
-            trap 'termHandler behat $TESTPATH' SIGTERM
-            attempt=0
+            [[ "X$CLAIM_RESULT" == 'X' ]] && break
+            # The claim query returns id, path, attempt, and priority_time.
+            # Later updates keep retry rows bound to the claimed row state.
+            IFS=$'\t' read -r TESTID TESTPATH CLAIMED_ATTEMPT CLAIMED_PRIORITY_TIME <<< "$CLAIM_RESULT"
+            CLAIMED_ATTEMPT=${CLAIMED_ATTEMPT:-1}
+            CLAIMED_PRIORITY_TIME=${CLAIMED_PRIORITY_TIME:-0}
+            trap 'termHandler behat "$TESTPATH" "$TESTID"' SIGTERM
+            attempt=$((CLAIMED_ATTEMPT - 1))
             while [[ $attempt -lt ${ORO_BEHAT_ATTEMPTS:-1} ]]; do
                 attempt=$((attempt + 1))
                 _note "Attempt=$attempt from ${ORO_BEHAT_ATTEMPTS:-1} Testing $TESTPATH"
@@ -260,11 +331,13 @@ elif [[ "$1" == 'behat' ]]; then
                 RETVAL=$?
                 set -e +x
                 tt=$((($(date +%s%N) - $ts) / 1000000))
-                # for first attempt - update. For next - add new result
-                if [[ $attempt -eq 1 ]]; then
-                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = '$tt', attempt = COALESCE(attempt, '$attempt') WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                # Update the claimed row for its scheduled attempt. Subsequent attempts create or refresh dedicated rows.
+                if [[ $attempt -eq $CLAIMED_ATTEMPT ]]; then
+                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = '$tt', attempt = COALESCE(attempt, '$attempt') WHERE id = '$TESTID';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                 else
-                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (time, attempt, build_tag, path) VALUES ('$tt', '$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                    # Retry rows are inserted idempotently because a fatal rerun may
+                    # already have scheduled the same attempt for the same path.
+                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (time, attempt, build_tag, path, priority_time) VALUES ('$tt', '$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = VALUES(time), priority_time = VALUES(priority_time);" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                 fi
                 # Show log with cat to prevent mix output from different threads
                 # cat "$APP_FOLDER/var/logs/behat_output.log" || :
@@ -282,7 +355,7 @@ elif [[ "$1" == 'behat' ]]; then
                     # The usage --skip-isolator makes fail always fatal because state not restored
                     if [[ $RETVAL -gt 1 || $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                         attempt=$((attempt + 1))
-                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH');" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path, priority_time) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = NULL, priority_time = VALUES(priority_time);" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                         # --skip-isolators always fatal
                         if [[ $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                             RETVAL_GLOBAL=7
