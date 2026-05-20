@@ -25,6 +25,42 @@ _error() {
     exit 1
 }
 
+_mysql_stat_error_log_path() {
+    printf '%s' "${APP_FOLDER:-${ORO_APP_FOLDER-/var/www/oro}}/var/logs/mysql_stat_errors.txt"
+}
+
+_mysql_stat_write_query() {
+    local db_name="$1"
+    local query="$2"
+    local timeout="${3:-5}"
+    local max_attempts="${4:-3}"
+    local attempt=1
+    local error_file
+    local tmp_file
+
+    error_file=$(_mysql_stat_error_log_path)
+
+    while :; do
+        tmp_file=$(mktemp)
+        if MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout="$timeout" --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 "$db_name" -BNe "$query" 2>"$tmp_file"; then
+            [[ -s "$tmp_file" ]] && cat "$tmp_file" >>"$error_file"
+            rm -f "$tmp_file"
+            return 0
+        fi
+
+        [[ -s "$tmp_file" ]] && cat "$tmp_file" >>"$error_file"
+        if [[ $attempt -lt $max_attempts ]] && grep -Eq 'ERROR (1213|1205) ' "$tmp_file"; then
+            _warn "Retrying MySQL stat write after transient lock error (attempt $attempt/$max_attempts)"
+            rm -f "$tmp_file"
+            attempt=$((attempt + 1))
+            continue
+        fi
+
+        rm -f "$tmp_file"
+        return 1
+    done
+}
+
 termHandler() {
     set +x
     local TESTPATH
@@ -36,12 +72,12 @@ termHandler() {
 
     if [[ "X$1" == 'Xbehat' && "X$TESTPATH" != 'X' ]]; then
         if [[ "X$TESTID" != 'X' ]]; then
-            MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = NULL WHERE id = '$TESTID' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+            _mysql_stat_write_query "$ORO_DB_STAT_NAME_BEHAT" "UPDATE behat_stat SET time = NULL WHERE id = '$TESTID' AND time = 0;" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
         else
-            MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+            _mysql_stat_write_query "$ORO_DB_STAT_NAME_BEHAT" "UPDATE behat_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
         fi
     elif [[ "X$1" == 'Xfunctional' && "X$TESTPATH" != 'X' ]]; then
-        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "UPDATE functional_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+        _mysql_stat_write_query "$ORO_DB_STAT_NAME_FUNCTIONAL" "UPDATE functional_stat SET time = NULL WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH' AND time = 0;" || _error "ERROR can't clear execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     fi
     exit 143
 }
@@ -53,7 +89,7 @@ _update_priority_time() {
 
     # Wrap the aggregate in an extra derived table so MySQL materializes it and
     # does not reject the self-reference with ERROR 1093 during the UPDATE.
-    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 "$db_name" -BNe "UPDATE ${table_name} AS t1 LEFT JOIN (SELECT aggregated.path, aggregated.priority_time FROM (SELECT path, MAX(time) AS priority_time FROM ${table_name} WHERE time IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY path) AS aggregated) AS t2 ON t2.path = t1.path SET t1.priority_time = COALESCE(t2.priority_time, 0) WHERE t1.build_tag = '${build_tag}' AND t1.time IS NULL;" 2>>"${APP_FOLDER:-${ORO_APP_FOLDER-/var/www/oro}}/var/logs/mysql_stat_errors.txt"
+    _mysql_stat_write_query "$db_name" "UPDATE ${table_name} AS t1 LEFT JOIN (SELECT aggregated.path, aggregated.priority_time FROM (SELECT path, MAX(time) AS priority_time FROM ${table_name} WHERE time IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY path) AS aggregated) AS t2 ON t2.path = t1.path SET t1.priority_time = COALESCE(t2.priority_time, 0) WHERE t1.build_tag = '${build_tag}' AND t1.time IS NULL;"
 }
 
 _get_pending_order_clause() {
@@ -180,7 +216,7 @@ elif [[ "$1" == 'functional' ]]; then
                 # Show log
                 _note "Testing $TESTPATH"
                 cat "$APP_FOLDER/var/logs/functional_output.log"
-                MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_FUNCTIONAL -BNe "UPDATE functional_stat SET time = '$tt' WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                _mysql_stat_write_query "$ORO_DB_STAT_NAME_FUNCTIONAL" "UPDATE functional_stat SET time = '$tt' WHERE build_tag = '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}' AND path = '$TESTPATH';" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
             else
                 # Collect logs to error log and set variable that test failed
                 cat "$APP_FOLDER/var/logs/functional_output.log" >>"$APP_FOLDER/var/logs/functional_errors.log"
@@ -258,11 +294,11 @@ elif [[ "$1" == 'behat-init' ]]; then # Used for create DB with statistics and f
         set -x
         "$APP_FOLDER/bin/behat" -v --available-features --tags="$ORO_BEHAT_TAGS" $ORO_BEHAT_OPTIONS -c "$APP_FOLDER/var/logs/behat/behat.yml"
         set +x
-        "$APP_FOLDER/bin/behat" --available-features --tags="$ORO_BEHAT_TAGS" $ORO_BEHAT_OPTIONS -c "$APP_FOLDER/var/logs/behat/behat.yml" | sort -u | sed "s|^$APP_FOLDER/||" | xargs -r -i echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE behat_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+        "$APP_FOLDER/bin/behat" --available-features --tags="$ORO_BEHAT_TAGS" $ORO_BEHAT_OPTIONS -c "$APP_FOLDER/var/logs/behat/behat.yml" | sort -u | sed "s|^$APP_FOLDER/||" | xargs -r -i echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}','1'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE behat_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag, attempt) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     else
-        echo "$TESTS_LIST" | xargs -r -n1 | sort -u | xargs -r -i echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE behat_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
+        echo "$TESTS_LIST" | xargs -r -n1 | sort -u | xargs -r -i echo "'{}','${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}','1'" | MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --local-infile=1 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -Be "LOAD DATA LOCAL INFILE '/dev/stdin' REPLACE INTO TABLE behat_stat COLUMNS TERMINATED BY ',' ENCLOSED BY '\'' (path, build_tag, attempt) ;" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
     fi
-    _update_priority_time "$ORO_DB_STAT_NAME_BEHAT" 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update behat priority for build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+    _update_priority_time "$ORO_DB_STAT_NAME_BEHAT" 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}" || _error "ERROR can't update behat priority for build_tag=${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
     _note "List features from DB:"
     LIST_QUERY=$(_get_pending_tests_query 'behat_stat' "${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}")
     MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "$LIST_QUERY" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt"
@@ -333,11 +369,11 @@ elif [[ "$1" == 'behat' ]]; then
                 tt=$((($(date +%s%N) - $ts) / 1000000))
                 # Update the claimed row for its scheduled attempt. Subsequent attempts create or refresh dedicated rows.
                 if [[ $attempt -eq $CLAIMED_ATTEMPT ]]; then
-                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "UPDATE behat_stat SET time = '$tt', attempt = COALESCE(attempt, '$attempt') WHERE id = '$TESTID';" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                    _mysql_stat_write_query "$ORO_DB_STAT_NAME_BEHAT" "UPDATE behat_stat SET time = '$tt' WHERE id = '$TESTID';" || _error "ERROR can't update execution time for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                 else
                     # Retry rows are inserted idempotently because a fatal rerun may
                     # already have scheduled the same attempt for the same path.
-                    MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (time, attempt, build_tag, path, priority_time) VALUES ('$tt', '$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = VALUES(time), priority_time = VALUES(priority_time);" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                    _mysql_stat_write_query "$ORO_DB_STAT_NAME_BEHAT" "INSERT INTO behat_stat (time, attempt, build_tag, path, priority_time) VALUES ('$tt', '$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = VALUES(time), priority_time = VALUES(priority_time);" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                 fi
                 # Show log with cat to prevent mix output from different threads
                 # cat "$APP_FOLDER/var/logs/behat_output.log" || :
@@ -355,7 +391,7 @@ elif [[ "$1" == 'behat' ]]; then
                     # The usage --skip-isolator makes fail always fatal because state not restored
                     if [[ $RETVAL -gt 1 || $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                         attempt=$((attempt + 1))
-                        MYSQL_PWD=$ORO_DB_STAT_PASSWORD mysql --connect-timeout=5 --user=$ORO_DB_STAT_USER --host=$ORO_DB_STAT_HOST --port=3306 $ORO_DB_STAT_NAME_BEHAT -BNe "INSERT INTO behat_stat (attempt, build_tag, path, priority_time) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = NULL, priority_time = VALUES(priority_time);" 2>>"$APP_FOLDER/var/logs/mysql_stat_errors.txt" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
+                        _mysql_stat_write_query "$ORO_DB_STAT_NAME_BEHAT" "INSERT INTO behat_stat (attempt, build_tag, path, priority_time) VALUES ('$attempt', '${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}', '$TESTPATH', '$CLAIMED_PRIORITY_TIME') ON DUPLICATE KEY UPDATE time = NULL, priority_time = VALUES(priority_time);" || _error "ERROR can't insert new result attempt for $TESTPATH ${ORO_IMAGE_TAG}${ORO_LOCAL_RUN}"
                         # --skip-isolators always fatal
                         if [[ $ORO_BEHAT_OPTIONS =~ --skip-isolators ]]; then
                             RETVAL_GLOBAL=7
