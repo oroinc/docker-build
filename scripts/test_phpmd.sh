@@ -39,7 +39,7 @@ BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"
 DIR_DIFF="${DIR_DIFF-$WORKSPACE/stats}"
 DIFF_PHP="diff_phpmd.txt"
 FILE_DIFF="diff.txt"
-EXCLUDED_PACKAGES="(/doctrine-extensions|/magento1|/crm-magento1-connector|/magento-contact-us|/crm-magento-embedded-contact-us|/api-doc-bundle|/maker)"
+EXCLUDED_PACKAGES="(/doctrine-extensions|/api-doc-bundle|/maker)"
 ORO_TESTS_PATH="${ORO_TESTS_PATH-vendor/oro}"
 
 run() {
