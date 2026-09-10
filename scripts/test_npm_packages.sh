@@ -119,7 +119,7 @@ run() {
 
             # Fail loudly if the workspace root is wrong: pnpm treats a no-match
             # --filter as success (exit 0), so a bad root would otherwise pass green.
-            for pkg in nuxt-storefront commerce-ui storefront-json-api-sdk json-api-sdk-generator; do
+            for pkg in nuxt-storefront commerce-ui validation storefront-json-api-sdk json-api-sdk-generator; do
                 if [ ! -d "npm-package/$pkg" ]; then
                     echo "::: ERROR: npm-package/$pkg not found under $PWD — wrong workspace root? :::"
                     exit 1
@@ -135,6 +135,7 @@ run() {
             pnpm install --ignore-scripts \
                 --filter "@oroinc/nuxt-storefront..." \
                 --filter "@oroinc/commerce-ui..." \
+                --filter "@oroinc/validation..." \
                 --filter "@oroinc/storefront-json-api-sdk..." \
                 --filter "@oroinc/json-api-sdk-generator..." || exit 1
 
@@ -146,6 +147,7 @@ run() {
             check pnpm --filter @oroinc/nuxt-storefront         run stylelint
 
             # commerce-ui
+            check pnpm --filter @oroinc/validation              run build
             check pnpm --filter @oroinc/commerce-ui             run eslint
             check pnpm --filter @oroinc/commerce-ui             run stylelint
             check pnpm --filter @oroinc/commerce-ui             run type-check
