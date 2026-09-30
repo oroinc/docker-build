@@ -387,6 +387,8 @@ services:
       ORO_BEHAT_ATTEMPTS:
       BUILD_URL:
       ORO_ENV:
+      # 1 runs the Behat sessions on the Playwright driver, which needs Node in the test image.
+      ORO_BEHAT_PLAYWRIGHT: ${ORO_BEHAT_PLAYWRIGHT-0}
     tmpfs:
       - /tmp
     depends_on:
@@ -422,6 +424,7 @@ services:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
+      ORO_BEHAT_PLAYWRIGHT: ${ORO_BEHAT_PLAYWRIGHT-0}
     tmpfs:
       - /tmp
     depends_on:
