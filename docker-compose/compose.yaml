@@ -8,6 +8,9 @@ include:
       - compose-proxy-${ORO_APP_PROTOCOL}.yaml
       - compose-${ORO_DOCKER_FOLDER_MODE:-prod}.yaml
       - compose${ORO_DEBUGGER}.yaml
+      # TLS for Redis, RabbitMQ and Elasticsearch: ORO_SERVICES_TLS=tls, otherwise compose-no.yaml
+      - compose-${ORO_SERVICES_TLS:-no}.yaml
     env_file:
       - .env
       - .env-ce-${ORO_CE:-no}
+      - .env-ce-${ORO_CE:-no}${ORO_SERVICES_TLS:+-tls}

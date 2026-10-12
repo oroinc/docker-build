@@ -53,9 +53,31 @@ The file contains several sections of variables:
 
 ### SSL certificate
 For SSL, a special web service `waf-behat` or `waf` is used. For more details, [see](https://gitlab.oro.cloud/orocloud-devops/oro-cloud-docker/-/blob/master/jenkins/nginx-waf/oel8/README.md)
-If you do not have a certificate, a self-signed one will be generated for testing.
-You can use a CA ROOT certificate sign a self-signed certificate. Uncomment variable `CAROOT` in the `.env` file and point it to the folder where CA ROOT certificate and key are located. In this case CAROOT certificates will be located on the host and can be imported into the `nss` database and used in Chrome.
+
+The certificates are signed by one CA. The `pki-init` service runs before the other services and prepares it:
+- If the `CAROOT` variable points to a folder on the host with `rootCA.pem` and `rootCA-key.pem` (the files of [mkcert](https://github.com/FiloSottile/mkcert)), this CA is used. It replaces a CA from a previous run. The folder is mounted read-only and is not changed. If the files are missing, the key does not match the certificate, or the certificate is not a CA, `pki-init` fails and the stack does not start.
+- Otherwise, the CA from a previous run is used, or a new CA is created in `ORO_CAROOT` (the `etc-pki` volume).
+
+`pki-init` adds the CA to the trust store in the `etc-pki` volume, which the services of the application, behat and chrome mount. `waf-init` signs the certificate of nginx with this CA.
+
+To make the browser on the host trust the application, use your own CA: install it on the host with `mkcert -install`, uncomment the `CAROOT` variable in the `.env` file and point it to the folder of the CA (`mkcert -CAROOT`).
 For more details, see https://web.dev/articles/how-to-use-local-https.
+
+> **NOTE:** `waf-init` does not run again while the `nginx-waf` volume contains the result of a previous run. After a change of the CA, remove the volume (`docker compose down -v`), otherwise nginx keeps the certificate of the previous CA.
+
+### TLS for Redis, RabbitMQ and Elasticsearch
+By default (`ORO_SERVICES_TLS=tls` in the `.env` file), the application connects to Redis, RabbitMQ and Elasticsearch over TLS only. The plain ports are closed. To use plain connections, set the variable empty in the `.env` file or in the environment: `ORO_SERVICES_TLS= docker compose up ...`.
+
+- `pki-init` issues one certificate for `session-storage`, `mq` and `search-engine`, signed by the CA above.
+- The DSN over TLS are in `.env-ce-no-tls` (EE) and `.env-ce-yes-tls` (CE). They are loaded after `.env-ce-no` / `.env-ce-yes` and override only the DSN: `rediss://`, `amqps://` (port 5671) and `https://`, with `ssl[cafile]=/etc/oro-services-tls/ca.pem`.
+- The TLS of the servers is in `compose-tls-*.yaml`. Elasticsearch runs with security enabled and anonymous access as `superuser`, because it ignores TLS without security.
+- Redis and Dragonfly require the password `ORO_REDIS_PASSWORD` (set in `.env-ce-*-tls`), because Dragonfly does not start with TLS and without authentication. The DSN contain it: `rediss://:<password>@session-storage:6379/...`.
+
+To check the connections, run `redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping` in `session-storage`, or `curl --cacert /etc/oro-services-tls/ca.pem https://search-engine:9200` in a service of the application.
+
+> **NOTE:** `tls` and an empty value are the only supported values. Do not set `ORO_SERVICES_TLS=no` to turn TLS off: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
+
+> **NOTE:** The application caches the DSN. After you turn TLS on or off, run `restore` or `warmup-cache` again.
 
 ## Actions
 

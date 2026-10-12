@@ -1,0 +1,61 @@
+x-depends_on_mq_rmq: &default-depends_on_mq_rmq
+  "mq":
+    condition: service_healthy
+
+services:
+  php-fpm-app:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  install:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  install-test:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  functional:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  behat-init:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  behat:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  restore:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  restore-test:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  update:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  update-test:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  warmup-cache:
+    depends_on:
+      <<: *default-depends_on_mq_rmq
+
+  mq:
+    image: ${ORO_PROJECT}rabbitmq:${ORO_RMQ_VER}
+    user: rabbitmq
+    labels:
+      com.symfony.server.service-prefix: ORO_MQ
+    volumes:
+      - ./rabbitmq/load_definitions.conf:/etc/rabbitmq/conf.d/load_definitions.conf
+      - ./rabbitmq/rmq.definitions.json:/etc/rabbitmq/rmq.definitions.json
+    healthcheck:
+      test: rabbitmq-diagnostics -q status
+      start_period: 120s
+    restart: unless-stopped
