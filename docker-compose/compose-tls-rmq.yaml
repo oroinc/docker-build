@@ -1,0 +1,10 @@
+# TLS of the RabbitMQ server only (ORO_SERVICES_TLS=tls): port 5671, the plain port is closed.
+# The DSN of the clients are in .env-ce-no-tls.
+services:
+  mq:
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - ./rabbitmq/tls.conf:/etc/rabbitmq/conf.d/20-tls.conf:ro
+      - services-tls:/etc/oro-services-tls:ro

@@ -1,0 +1,37 @@
+# TLS for Redis, RabbitMQ and Elasticsearch (ORO_SERVICES_TLS=tls). The DSN are in .env-ce-*-tls, the TLS of the
+# servers in compose-tls-*.yaml. Here: the CA for ssl[cafile] of the DSN, for every service of the application.
+x-services-tls-client: &services-tls-client
+  volumes:
+    - services-tls:/etc/oro-services-tls:ro
+
+services:
+  # The CA and its trust for https, the certificate of the services for ORO_SERVICES_TLS=tls: see compose-pki-init.yaml
+  pki-init:
+    extends:
+      file: compose-pki-init.yaml
+      service: pki-init
+
+  php-fpm-app: *services-tls-client
+  ws: *services-tls-client
+  consumer: *services-tls-client
+  cron: *services-tls-client
+  operator: *services-tls-client
+  install: *services-tls-client
+  install-test: *services-tls-client
+  functional-init: *services-tls-client
+  functional: *services-tls-client
+  behat-init: *services-tls-client
+  behat: *services-tls-client
+  behat-remote: *services-tls-client
+  backup: *services-tls-client
+  backup-test: *services-tls-client
+  restore: *services-tls-client
+  restore-test: *services-tls-client
+  update: *services-tls-client
+  update-test: *services-tls-client
+  warmup-cache: *services-tls-client
+  web-init: *services-tls-client
+
+volumes:
+  etc-pki: {}
+  services-tls: {}

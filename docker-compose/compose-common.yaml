@@ -9,6 +9,9 @@ x-depends_on: &default-depends_on
 include:
   - path:
       - compose-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}.yaml
+      # TLS of the server only (ORO_SERVICES_TLS=tls), otherwise compose-no.yaml. The DSN of the clients are in
+      # .env-ce-*-tls: a file included here can't change the services of this file.
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}}.yaml
 
 services:
   application:
@@ -17,6 +20,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     depends_on:
       "waf":
         condition: service_started
@@ -83,6 +87,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     healthcheck:
       test: "curl -If http://127.0.0.1:${ORO_UPSTREAM_PORT}/"
@@ -106,6 +111,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     volumes:
       - oro_app:/var/www/oro
 
@@ -115,6 +121,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     volumes:
       - oro_test:/var/www/oro
 
@@ -149,6 +156,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     depends_on:
       "php-fpm-app":
         condition: service_healthy
@@ -161,6 +169,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     healthcheck:
@@ -189,6 +198,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -211,6 +221,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -234,6 +245,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     ulimits:
       nofile:
@@ -257,6 +269,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
       DOCKER_API_VERSION: v1.43
@@ -280,6 +293,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_SAMPLE_DATA:
     depends_on:
@@ -295,6 +309,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -309,6 +324,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
@@ -327,6 +343,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_FUNCTIONAL_ARGS:
       ORO_LOCAL_RUN:
@@ -350,6 +367,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -374,6 +392,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -415,6 +434,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_APP_PROTOCOL:
@@ -441,6 +461,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       USE_SELENIUM_GRID: 1
       KARMA_HOSTNAME: karma
@@ -475,6 +496,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_APP_DOMAIN:
       ORO_APP_ADDON_DOMAINS:
@@ -502,6 +524,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
@@ -539,6 +562,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
@@ -578,6 +602,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
@@ -595,6 +620,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -609,6 +635,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
@@ -624,6 +651,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -638,6 +666,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
