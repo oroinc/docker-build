@@ -50,8 +50,10 @@ run() {
         exit 1
     fi
 
-    LOGS="$WORKDIR/var/logs"
-    mkdir -p "$LOGS"
+    LOGS="$APP_SRC/var/logs"
+    mkdir -p "$LOGS/junit"
+    find "$LOGS/junit" -name "npm-packages-*.xml" ! -name "npm-packages-browser-*.xml" -delete
+    rm -rf "$LOGS/commerce-ui-storybook"
     : >"$LOGS/npm_packages_output.log"
 
     # HOME is mounted read-only, but pnpm needs writable dirs for its self-installed
@@ -72,12 +74,8 @@ run() {
     # remove the scratch on every exit path, including early failure and interrupts
     trap 'rm -rf "$ISOLATED"' EXIT INT TERM
     rm -rf "$ISOLATED"
-    mkdir -p "$ISOLATED/frontend"
-    cp -a "$WORKDIR/pnpm-workspace.yaml" "$ISOLATED/"
-    [[ -f "$WORKDIR/package.json" ]] && cp -a "$WORKDIR/package.json" "$ISOLATED/"
-    [[ -f "$WORKDIR/.npmrc" ]] && cp -a "$WORKDIR/.npmrc" "$ISOLATED/"
-    if ! rsync -a --exclude 'node_modules' "$WORKDIR/npm-package/" "$ISOLATED/npm-package/" \
-        || ! rsync -a --exclude 'node_modules' "$WORKDIR/frontend/storefront-nuxt/" "$ISOLATED/frontend/storefront-nuxt/"; then
+    mkdir -p "$ISOLATED"
+    if ! rsync -a --exclude 'node_modules' "$WORKDIR/npm-package/" "$ISOLATED/npm-package/"; then
         echo "ERROR: failed to assemble isolated npm workspace at $ISOLATED"
         exit 1
     fi
@@ -92,7 +90,7 @@ run() {
         -v "/etc/shadow:/etc/shadow:ro" \
         -v "${HOME}":"${HOME}":ro \
         -v "$ISOLATED":"$ISOLATED" \
-        -v "$LOGS":"$WORKDIR/var/logs" \
+        -v "$LOGS":/reports \
         -v "$XDG_BASE":/xdg \
         -w "$ISOLATED" \
         --env XDG_DATA_HOME=/xdg/data \
@@ -103,11 +101,13 @@ run() {
         bash -c '
             set -u
             STATUS=0
+            FAILED_CHECKS=()
             check() {
                 echo "::: running: $* :::"
                 if ! "$@"; then
                     echo "::: FAILED: $* :::"
                     STATUS=1
+                    FAILED_CHECKS+=("$*")
                 fi
             }
 
@@ -119,7 +119,7 @@ run() {
 
             # Fail loudly if the workspace root is wrong: pnpm treats a no-match
             # --filter as success (exit 0), so a bad root would otherwise pass green.
-            for pkg in nuxt-storefront commerce-ui validation storefront-json-api-sdk json-api-sdk-generator; do
+            for pkg in nuxt-storefront commerce-ui validation storefront-json-api-sdk json-api-sdk-generator nuxt-modules/csrf nuxt-modules/lighthouse nuxt-modules/oroapi-sdk-resolver; do
                 if [ ! -d "npm-package/$pkg" ]; then
                     echo "::: ERROR: npm-package/$pkg not found under $PWD — wrong workspace root? :::"
                     exit 1
@@ -127,36 +127,66 @@ run() {
             done
 
             # --ignore-scripts: lint/type-check needs no lifecycle hooks, and they fail
-            # on a fresh checkout (root postinstall needs nx, nuxt prepare needs a
-            # built commerce-ui dist/). The ... filter suffix selects each package
-            # plus its dependency closure, including workspace-linked packages (the
-            # stylelint binary arrives via the linked @oroinc/stylelint-config).
+            # on a fresh checkout (nuxt prepare needs a built commerce-ui dist/).
             # NOTE: this whole block runs inside single quotes - no apostrophes here.
-            pnpm install --ignore-scripts \
-                --filter "@oroinc/nuxt-storefront..." \
-                --filter "@oroinc/commerce-ui..." \
-                --filter "@oroinc/validation..." \
-                --filter "@oroinc/storefront-json-api-sdk..." \
-                --filter "@oroinc/json-api-sdk-generator..." || exit 1
+            pnpm --dir npm-package/nuxt-storefront install --frozen-lockfile --ignore-scripts || exit 1
 
             # Checks grouped per package - each runs only the scripts it
             # defines. To cover a new package, append a block below.
 
-            # nuxt-storefront:
-            check pnpm --filter @oroinc/nuxt-storefront         run eslint
-            check pnpm --filter @oroinc/nuxt-storefront         run stylelint
+            check pnpm --dir npm-package/validation run build
+            check pnpm --dir npm-package/validation run eslint
+            check pnpm --dir npm-package/validation run type-check
+            check pnpm --dir npm-package/validation run test \
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-validation.xml
 
-            # commerce-ui
-            check pnpm --filter @oroinc/validation              run build
-            check pnpm --filter @oroinc/commerce-ui             run eslint
-            check pnpm --filter @oroinc/commerce-ui             run stylelint
-            check pnpm --filter @oroinc/commerce-ui             run type-check
+            check env NODE_OPTIONS="--test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=/reports/junit/npm-packages-stylelint-config.xml" \
+                pnpm --dir npm-package/stylelint-config run test
 
-            # storefront-json-api-sdk
-            check pnpm --filter @oroinc/storefront-json-api-sdk run eslint
+            check pnpm --dir npm-package/commerce-ui run eslint
+            check pnpm --dir npm-package/commerce-ui run stylelint
+            check pnpm --dir npm-package/commerce-ui run type-check
+            # commerce-ui tests run in test_npm_packages_browser.sh
+            check pnpm --dir npm-package/commerce-ui run build
+            check pnpm --dir npm-package/commerce-ui run build-storybook --output-dir /reports/commerce-ui-storybook
 
-            # json-api-sdk-generator
-            check pnpm --filter @oroinc/json-api-sdk-generator  run lint
+            check pnpm --dir npm-package/commerce-ui-nuxt run build
+            check pnpm --dir npm-package/commerce-ui-nuxt run eslint
+            check pnpm --dir npm-package/commerce-ui-nuxt run type-check
+            check pnpm --dir npm-package/commerce-ui-nuxt run test \
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-commerce-ui-nuxt.xml
+
+            check pnpm --dir npm-package/nuxt-modules/csrf run build
+            check pnpm --dir npm-package/nuxt-modules/csrf run eslint
+            check pnpm --dir npm-package/nuxt-modules/csrf run type-check
+            check pnpm --dir npm-package/nuxt-modules/csrf run test \
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-nuxt-csrf.xml
+
+            check pnpm --dir npm-package/nuxt-modules/lighthouse run build
+            check pnpm --dir npm-package/nuxt-modules/lighthouse run eslint
+            check pnpm --dir npm-package/nuxt-modules/lighthouse run type-check
+            check pnpm --dir npm-package/nuxt-modules/lighthouse run test \
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-oro-nuxt-lighthouse.xml
+
+            check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run build
+            check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run eslint
+            check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run type-check
+            check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run test \
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-nuxt-oroapi-sdk-resolver.xml
+
+            check pnpm --dir npm-package/storefront-json-api-sdk run eslint
+
+            check pnpm --dir npm-package/json-api-sdk-generator run lint
+
+            check pnpm --dir npm-package/nuxt-storefront run eslint
+            check pnpm --dir npm-package/nuxt-storefront run stylelint
+
+            if [ "${#FAILED_CHECKS[@]}" -gt 0 ]; then
+                echo "::: summary: ${#FAILED_CHECKS[@]} check(s) failed :::"
+                printf "::: FAILED: %s :::\n" "${FAILED_CHECKS[@]}"
+            else
+                echo "::: summary: all checks passed :::"
+            fi
 
             exit $STATUS
         ' 2>&1 | tee "$LOGS/npm_packages_output.log"
@@ -166,6 +196,7 @@ run() {
         echo -e "${GREEN}npm-package lint/type-check passed.${NC}"
     else
         echo -e "${RED}PROBLEM. npm-package lint/type-check failed.${NC}"
+        echo "Reports saved next to npm_packages_output.log: junit/npm-packages-*.xml, commerce-ui-storybook/"
         exit 1
     fi
 
