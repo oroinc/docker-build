@@ -176,7 +176,7 @@ run() {
 
             check pnpm --dir npm-package/storefront-json-api-sdk run eslint
 
-            check pnpm --dir npm-package/json-api-sdk-generator run lint
+            check pnpm --dir npm-package/json-api-sdk-generator run eslint
 
             check pnpm --dir npm-package/nuxt-storefront run eslint
             check pnpm --dir npm-package/nuxt-storefront run stylelint
