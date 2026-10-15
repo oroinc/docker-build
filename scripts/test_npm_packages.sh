@@ -129,7 +129,7 @@ run() {
             # --ignore-scripts: lint/type-check needs no lifecycle hooks, and they fail
             # on a fresh checkout (nuxt prepare needs a built commerce-ui dist/).
             # NOTE: this whole block runs inside single quotes - no apostrophes here.
-            pnpm --dir npm-package/nuxt-storefront install --frozen-lockfile --ignore-scripts || exit 1
+            pnpm --dir npm-package install --frozen-lockfile --ignore-scripts || exit 1
 
             # Checks grouped per package - each runs only the scripts it
             # defines. To cover a new package, append a block below.
@@ -148,7 +148,7 @@ run() {
             check pnpm --dir npm-package/commerce-ui run type-check
             # commerce-ui tests run in test_npm_packages_browser.sh
             check pnpm --dir npm-package/commerce-ui run build
-            check pnpm --dir npm-package/commerce-ui run build-storybook --output-dir /reports/commerce-ui-storybook
+            check env NODE_OPTIONS=--max-old-space-size=4096 pnpm --dir npm-package/commerce-ui run build-storybook --output-dir /reports/commerce-ui-storybook
 
             check pnpm --dir npm-package/commerce-ui-nuxt run build
             check pnpm --dir npm-package/commerce-ui-nuxt run eslint
@@ -166,7 +166,7 @@ run() {
             check pnpm --dir npm-package/nuxt-modules/lighthouse run eslint
             check pnpm --dir npm-package/nuxt-modules/lighthouse run type-check
             check pnpm --dir npm-package/nuxt-modules/lighthouse run test \
-                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-oro-nuxt-lighthouse.xml
+                --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-nuxt-lighthouse.xml
 
             check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run build
             check pnpm --dir npm-package/nuxt-modules/oroapi-sdk-resolver run eslint

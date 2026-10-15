@@ -107,7 +107,7 @@ run() {
             corepack prepare pnpm@10.33.1 --activate || exit 1
             echo "::: debug: node=$(node -v) pnpm=$(pnpm -v) id=$(id) :::"
 
-            pnpm --dir npm-package/nuxt-storefront install --frozen-lockfile --ignore-scripts || exit 1
+            pnpm --dir npm-package install --frozen-lockfile --ignore-scripts || exit 1
             pnpm --dir npm-package/validation run build || exit 1
             pnpm --dir npm-package/commerce-ui run test:coverage \
                 --reporter=default --reporter=junit --outputFile.junit=/reports/junit/npm-packages-browser-commerce-ui.xml \
