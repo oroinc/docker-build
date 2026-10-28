@@ -85,26 +85,24 @@ run() {
 
     # Get .feature diff
     if [[ -e "$LOGS/$FILE_DIFF" ]]; then
+        command -v jq >/dev/null 2>&1 || {
+            echo -e "${RED}ERROR. jq is required to map changed features to vendor paths.${NC}"
+            exit 1
+        }
+
         pushd "$WORKDIR" >/dev/null 2>&1 || {
             echo "Can't enter to folder $WORKDIR"
             exit 1
         }
 
+        # The vendor folder name comes from the package composer.json, it can differ from package/<dir>
         grep '^package/.*\.feature$' "$LOGS/$FILE_DIFF" \
-        | awk -v app_src="$APP_SRC" '
-          {
-            split($0, parts, "/");
-            pkg = parts[2];
-            sub("^package/" pkg "/", "", $0);
-            feature_path = $0;
-
-            bundle_path = app_src "/vendor/oro/" pkg "-bundle/" feature_path;
-            plain_path  = app_src "/vendor/oro/" pkg       "/" feature_path;
-
-            print bundle_path;
-            print plain_path;
-          }
-        ' \
+        | while IFS= read -r feature; do
+            pkg_dir="${feature#package/}"
+            pkg_dir="package/${pkg_dir%%/*}"
+            pkg_name="$(jq -r '.name // empty' "$pkg_dir/composer.json" 2>/dev/null)"
+            [[ -n "$pkg_name" ]] && echo "$APP_SRC/vendor/$pkg_name/${feature#"$pkg_dir"/}"
+        done \
         | grep -Fxf "$LOGS/$ALLOWED_FEATURES" \
         > "$LOGS/$DIFF_FEATURE"
 

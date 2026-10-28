@@ -45,6 +45,15 @@ run() {
     : >"$LOGS/$DIFF_JAVASCRIPT_ESLINT"
     : >"$LOGS/$ALLOWED_JS_LIST"
 
+    # Detect workdir if empty
+    if [[ "X$WORKDIR" == "X" ]]; then
+        if [[ "$(basename "$(dirname "$APP_SRC")")" == "application" ]]; then
+            WORKDIR="$(dirname "$(dirname "$APP_SRC")")"
+        else
+            WORKDIR=$APP_SRC
+        fi
+    fi
+
     set -x
     set -o pipefail
 
@@ -79,26 +88,24 @@ run() {
 
     # Get .js diff
     if [[ -e "$LOGS/$FILE_DIFF" ]]; then
+        command -v jq >/dev/null 2>&1 || {
+            echo -e "${RED}ERROR. jq is required to map changed files to vendor paths.${NC}"
+            exit 1
+        }
+
         pushd "$WORKDIR" >/dev/null 2>&1 || {
             echo "Can't enter to folder $WORKDIR"
             exit 1
         }
 
+        # The vendor folder name comes from the package composer.json, it can differ from package/<dir>
         grep '^package/.*\.js$' "$LOGS/$FILE_DIFF" \
-        | awk '
-            {
-                split($0, parts, "/");
-                pkg = parts[2];
-                sub("^package/" pkg "/", "", $0);
-                js_path = $0;
-
-                bundle_path = "./vendor/oro/" pkg "-bundle/" js_path;
-                plain_path  = "./vendor/oro/" pkg       "/" js_path;
-
-                print bundle_path;
-                print plain_path;
-            }
-        ' \
+        | while IFS= read -r file; do
+            pkg_dir="${file#package/}"
+            pkg_dir="package/${pkg_dir%%/*}"
+            pkg_name="$(jq -r '.name // empty' "$pkg_dir/composer.json" 2>/dev/null)"
+            [[ -n "$pkg_name" ]] && echo "./vendor/$pkg_name/${file#"$pkg_dir"/}"
+        done \
         | grep -Fxf "$LOGS/$ALLOWED_JS_LIST" \
         > "$LOGS/$DIFF_JAVASCRIPT_ESLINT"
 
