@@ -45,8 +45,8 @@ run() {
             WORKDIR=$APP_SRC
         fi
     fi
-    if [[ ! -d "$WORKDIR/npm-package" || ! -f "$WORKDIR/pnpm-workspace.yaml" ]]; then
-        echo "ERROR: Could not locate the monorepo root (npm-package/ + pnpm-workspace.yaml); resolved WORKDIR='$WORKDIR'"
+    if [[ ! -f "$WORKDIR/npm-package/pnpm-workspace.yaml" ]]; then
+        echo "ERROR: Could not locate the monorepo root (npm-package/pnpm-workspace.yaml); resolved WORKDIR='$WORKDIR'"
         exit 1
     fi
 
