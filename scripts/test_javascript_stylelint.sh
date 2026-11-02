@@ -28,6 +28,7 @@ BASELINE_VERSION='master-latest'
 APP_SRC="$PWD"
 WORKDIR=''
 FILE_DIFF="diff.txt"
+FULL_CHECK_FILES='^(npm-package/stylelint-config/|application/[^/]+/(dev/)?(package\.json|pnpm-lock\.yaml)$|application/[^/]+/\.stylelint|docker-build/scripts/test_javascript_stylelint\.sh$)'
 DIFF_JAVASCRIPT_STYLELINT="diff_javascript_stylelint.txt"
 ALLOWED_SCSS_LIST="allowed_scss_list.txt"
 ORO_PUBLIC_PROJECT=${ORO_PUBLIC_PROJECT-harborio.oro.cloud/oro-platform-public}
@@ -86,7 +87,14 @@ run() {
     fi
 
     # Get .scss diff
-    if [[ -e "$LOGS/$FILE_DIFF" ]]; then
+    # A change of the stylelint config or of the JS dependencies can break the files the change did not touch,
+    # so then all files are checked, not only the changed ones
+    local check_all=''
+    if [[ -e "$LOGS/$FILE_DIFF" ]] && grep -qE "$FULL_CHECK_FILES" "$LOGS/$FILE_DIFF"; then
+        echo "The stylelint config or the JS dependencies were changed: all files are checked"
+        check_all=1
+    fi
+    if [[ -e "$LOGS/$FILE_DIFF" && -z "$check_all" ]]; then
         command -v jq >/dev/null 2>&1 || {
             echo -e "${RED}ERROR. jq is required to map changed files to vendor paths.${NC}"
             exit 1

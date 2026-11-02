@@ -58,7 +58,7 @@ You can check tests or specify other options for phpunit after the script:
 ```
 
 ### `test_php-cs-fixer.sh`, `test_phpcs.sh`, `test_phpmd.sh`
-These are scripts to run php-cs-fixer or phpcs or phpmd. If you do not specify a file (by setting it in variables DIR_DIFF and FILE_DIFF) with a list of files, then it checks all found php files. Otherwise, it only checks the files from the list.
+These are scripts to run php-cs-fixer or phpcs or phpmd. If you do not specify a file (by setting it in variables DIR_DIFF and FILE_DIFF) with a list of files, then it checks all found php files. Otherwise, it only checks the files from the list, or all of them when the list has a change of the linter config (`package/platform/build/`) or of the PHP dependencies (`composer.json`, `dev.json` or `dev.lock` of `application/*`).
 ```bash
 ../../docker-build/scripts/test_php-cs-fixer.sh -b master-latest
 ```
@@ -81,13 +81,13 @@ This script runs a Code Style (CS) check for Behat .feature files. It filters th
 ```
 
 ### `test_javascript_eslint.sh`
-This script performs ESLint analysis on JavaScript files located in Oro bundles.
+This script performs ESLint analysis on JavaScript files located in Oro bundles. With `var/logs/diff.txt` it checks only the changed `.js` files, or all of them when the change touches the ESLint config (`application/*/.eslint*`) or the JS dependencies (`package.json` or `pnpm-lock.yaml` of `application/*` or `application/*/dev`).
 ```bash
 ../../docker-build/scripts/test_javascript_eslint.sh -b master-latest
 ```
 
 ### `test_javascript_stylelint.sh`
-This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore.
+This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore, or all of them when the change touches the Stylelint config (`npm-package/stylelint-config`, `application/*/.stylelint*`) or the JS dependencies (`package.json` or `pnpm-lock.yaml` of `application/*` or `application/*/dev`).
 ```bash
 ../../docker-build/scripts/test_javascript_stylelint.sh -b master-latest
 ```
