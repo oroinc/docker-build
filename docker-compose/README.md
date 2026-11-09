@@ -65,15 +65,17 @@ For more details, see https://web.dev/articles/how-to-use-local-https.
 
 > **NOTE:** `waf-init` does not run again while the `nginx-waf` volume contains the result of a previous run. After a change of the CA, remove the volume (`docker compose down -v`), otherwise nginx keeps the certificate of the previous CA.
 
-### TLS for Redis, RabbitMQ and Elasticsearch
-By default (`ORO_SERVICES_TLS=tls` in the `.env` file), the application connects to Redis, RabbitMQ and Elasticsearch over TLS only. The plain ports are closed. To use plain connections, set the variable empty in the `.env` file or in the environment: `ORO_SERVICES_TLS= docker compose up ...`.
+### TLS for Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg
+By default (`ORO_SERVICES_TLS=tls` in the `.env` file), the application connects to Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg over TLS only. The plain ports are closed. To use plain connections, set the variable empty in the `.env` file or in the environment: `ORO_SERVICES_TLS= docker compose up ...`.
 
 - `pki-init` issues one certificate for `session-storage`, `mq` and `search-engine`, signed by the CA above.
-- The DSN over TLS are in `.env-ce-no-tls` (EE) and `.env-ce-yes-tls` (CE). They are loaded after `.env-ce-no` / `.env-ce-yes` and override only the DSN: `rediss://`, `amqps://` (port 5671) and `https://`, with `ssl[cafile]=/etc/oro-services-tls/ca.pem`.
+- The DSN over TLS are in `.env-ce-no-tls` (EE) and `.env-ce-yes-tls` (CE). They are loaded after `.env-ce-no` / `.env-ce-yes` and override only the DSN: `rediss://`, `amqps://` (port 5671) and `https://` (Elasticsearch, and Gotenberg on the same port 3000), with `ssl[cafile]=/etc/oro-services-tls/ca.pem`. For PostgreSQL, `ORO_DB_DSN` has `sslmode=verify-full&sslrootcert=/etc/oro-services-tls/ca.pem`, and `PGSSLMODE` / `PGSSLROOTCERT` make `psql` and `pg_dump` of the entrypoints (backup, restore) use TLS too.
 - The TLS of the servers is in `compose-tls-*.yaml`. Elasticsearch runs with security enabled and anonymous access as `superuser`, because it ignores TLS without security.
+- PostgreSQL accepts TCP connections with TLS only (`hostnossl ... reject` in its `pg_hba.conf`); the local socket stays for its own entrypoint. The image keeps its entrypoint and command: `postgres/tls.sh` in `docker-entrypoint-initdb.d` takes the files from `ORO_DB_SSL_CERT_FILE`, `ORO_DB_SSL_KEY_FILE` and `ORO_DB_SSL_CA_FILE` and adds only the `pg_hba.conf` lines that are not there yet. PostgreSQL refuses a key that others can read, so `pki-init` issues `db-key.pem` of `root:999` with mode `0640` next to `server-key.pem`.
+- SMTP is Mailpit (the `mail` service), with the web UI and API on port 1080 (`ORO_MAILER_WEB_URL`, over HTTPS with TLS; `ORO_MAILER_WEB_TYPE=mailpit` selects its API in the Behat email client). Mailpit has one SMTP port 1025, so one TLS mode at a time: `ORO_MAILER_TLS_MODE=starttls` (default, `ORO_MAILER_DSN=smtp://mail:1025?require_tls=1&ssl[cafile]=...`) or `ORO_MAILER_TLS_MODE=tls` (implicit TLS, `smtps://mail:1025?ssl[cafile]=...`). Change `ORO_MAILER_DSN` together with the mode.
 - Redis and Dragonfly require the password `ORO_REDIS_PASSWORD` (set in `.env-ce-*-tls`), because Dragonfly does not start with TLS and without authentication. The DSN contain it: `rediss://:<password>@session-storage:6379/...`.
 
-To check the connections, run `redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping` in `session-storage`, or `curl --cacert /etc/oro-services-tls/ca.pem https://search-engine:9200` in a service of the application.
+To check the connections, run `redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping` in `session-storage`, or `curl --cacert /etc/oro-services-tls/ca.pem https://search-engine:9200` (or `https://pdf-conversion:3000/health`) in a service of the application, or `psql "host=db user=$ORO_DB_USER dbname=$ORO_DB_NAME sslmode=verify-full sslrootcert=/etc/oro-services-tls/ca.pem"` in `db`.
 
 > **NOTE:** `tls` and an empty value are the only supported values. Do not set `ORO_SERVICES_TLS=no` to turn TLS off: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
 

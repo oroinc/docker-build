@@ -1,4 +1,4 @@
-# TLS for Redis, RabbitMQ and Elasticsearch (ORO_SERVICES_TLS=tls). The DSN are in .env-ce-*-tls, the TLS of the
+# TLS for Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg (ORO_SERVICES_TLS=tls). The DSN are in .env-ce-*-tls, the TLS of the
 # servers in compose-tls-*.yaml. Here: the CA for ssl[cafile] of the DSN, for every service of the application.
 x-services-tls-client: &services-tls-client
   volumes:

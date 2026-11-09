@@ -1,0 +1,15 @@
+# TLS of the Gotenberg API only (ORO_SERVICES_TLS=tls): https on the same port 3000, plain http is not served.
+# The URL of the clients is in .env-ce-no-tls.
+services:
+  pdf-conversion:
+    command:
+      - gotenberg
+      - --api-tls-cert-file=/etc/oro-services-tls/server.pem
+      - --api-tls-key-file=/etc/oro-services-tls/server-key.pem
+    healthcheck:
+      test: ["CMD", "curl", "-sfL", "--cacert", "/etc/oro-services-tls/ca.pem", "https://localhost:3000/health"]
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - services-tls:/etc/oro-services-tls:ro

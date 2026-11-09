@@ -1,0 +1,18 @@
+# TLS of the PostgreSQL server only (ORO_SERVICES_TLS=tls). Included by compose-common.yaml, so the services of the
+# application can't be changed here: their DSN are in .env-ce-*-tls.
+# postgres/tls.sh sets the files of the variables below and rejects the connections over TCP without TLS. PostgreSQL
+# refuses a key that others can read: pki-init issues db-key.pem of root:postgres 0640, server-key.pem is 0644.
+services:
+  db:
+    environment:
+      ORO_DB_SSL_CERT_FILE: /etc/oro-services-tls/server.pem
+      ORO_DB_SSL_KEY_FILE: /etc/oro-services-tls/db-key.pem
+      ORO_DB_SSL_CA_FILE: /etc/oro-services-tls/ca.pem
+    healthcheck:
+      test: "pg_isready -d 'host=db port=${ORO_DB_PORT} user=${ORO_DB_USER} dbname=${ORO_DB_NAME} sslmode=verify-full sslrootcert=/etc/oro-services-tls/ca.pem'"
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - services-tls:/etc/oro-services-tls:ro
+      - ./postgres/tls.sh:/docker-entrypoint-initdb.d/20_tls.sh:ro

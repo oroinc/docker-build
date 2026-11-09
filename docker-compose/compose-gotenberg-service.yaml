@@ -1,0 +1,54 @@
+x-depends_on_pdf_conversion: &default-depends_on_pdf_conversion
+  "pdf-conversion":
+    condition: service_healthy
+
+services:
+  php-fpm-app:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  install:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  install-test:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  functional:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  behat-init:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  behat:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  restore:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  restore-test:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  update:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  update-test:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  warmup-cache:
+    depends_on:
+      <<: *default-depends_on_pdf_conversion
+
+  pdf-conversion:
+    image: ${ORO_PROJECT}gotenberg:${ORO_GOTENBERG_VER}
+    healthcheck:
+      test: ["CMD", "curl", "-sfL", "http://localhost:3000/health"]
+    restart: unless-stopped

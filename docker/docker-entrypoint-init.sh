@@ -444,14 +444,16 @@ issue_services_cert() {
         -keyout "$DIR/server-key.pem" -out "$DIR/server.csr" 2>/dev/null || _error "Can't create the request of the services certificate"
     openssl x509 -req -in "$DIR/server.csr" -CA "$ORO_CAROOT/rootCA.pem" -CAkey "$ORO_CAROOT/rootCA-key.pem" \
         -CAcreateserial -CAserial "$DIR/rootCA.srl" -days 825 -sha256 -out "$DIR/server.pem" -extfile <(printf '%s\n' \
-            'subjectAltName=DNS:session-storage,DNS:mq,DNS:search-engine,DNS:localhost,IP:127.0.0.1' \
+            'subjectAltName=DNS:session-storage,DNS:mq,DNS:search-engine,DNS:db,DNS:pdf-conversion,DNS:mail,DNS:localhost,IP:127.0.0.1' \
             'extendedKeyUsage=serverAuth' \
             'keyUsage=critical,digitalSignature,keyEncipherment' \
             'basicConstraints=CA:FALSE') 2>/dev/null || _error "Can't sign the services certificate"
     rm -f "$DIR/server.csr" "$DIR/rootCA.srl"
     cp -f "$ORO_CAROOT/rootCA.pem" "$DIR/ca.pem"
-    # Read by the users of Redis, RabbitMQ and Elasticsearch. For development only.
+    # Read by the users of Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg. For development only.
     chmod 0644 "$DIR/server.pem" "$DIR/server-key.pem" "$DIR/ca.pem"
+    # PostgreSQL refuses a key that others can read, but takes one of root readable by its group (999 in the image)
+    install -o root -g 999 -m 0640 "$DIR/server-key.pem" "$DIR/db-key.pem" || _error "Can't create the key of PostgreSQL"
 }
 
 set_files_owner() {

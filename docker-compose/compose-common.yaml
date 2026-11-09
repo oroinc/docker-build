@@ -12,6 +12,10 @@ include:
       # TLS of the server only (ORO_SERVICES_TLS=tls), otherwise compose-no.yaml. The DSN of the clients are in
       # .env-ce-*-tls: a file included here can't change the services of this file.
       - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}}.yaml
+      - compose-db.yaml
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-db}.yaml
+      - compose-mail.yaml
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-mail}.yaml
 
 services:
   application:
@@ -675,29 +679,6 @@ services:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-
-  db:
-    image: ${ORO_PROJECT}postgis:${ORO_PG_VER}
-    labels:
-      com.symfony.server.service-prefix: ORO_DB
-    environment:
-      POSTGRES_ROOT_PASSWORD: ${ORO_DB_ROOT_PASSWORD}
-      POSTGRES_DB: ${ORO_DB_NAME}
-      POSTGRES_USER: ${ORO_DB_USER}
-      POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
-    tmpfs:
-      - /var/lib/postgresql
-    healthcheck:
-      test: "pg_isready -h 127.0.0.1 -p ${ORO_DB_PORT} -U${ORO_DB_USER} -d${ORO_DB_NAME}"
-      start_period: 60s
-    restart: unless-stopped
-    volumes:
-      - ./postgres/uuid-ossp.sql:/docker-entrypoint-initdb.d/uuid-ossp.sql:ro
-
-  mail:
-    image: ${ORO_PROJECT}mailcatcher
-    hostname: mail
-    restart: unless-stopped
 
   blackfire:
     image: ${ORO_PROJECT}blackfire:2
