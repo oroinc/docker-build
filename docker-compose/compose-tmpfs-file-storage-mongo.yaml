@@ -1,0 +1,7 @@
+# Data of the MongoDB file storage in memory (ORO_SERVICES_TMPFS=tmpfs), instead of the anonymous volume of the image
+# (/data/db) on disk. The tmpfs replaces that volume, so it must be at /data/db and owned by the user of the image (1001).
+# Included by compose.yaml.
+services:
+  file-storage:
+    tmpfs:
+      - /data/db:uid=1001,gid=0

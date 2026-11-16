@@ -66,8 +66,6 @@ services:
   file-storage:
     image: ${ORO_PROJECT}percona-server-mongodb:${ORO_MONGO_VER}
     env_file: .env-ce-no
-    tmpfs:
-      - /data
     volumes:
       - ./mongo/mongo.definitions.sh:/docker-entrypoint-initdb.d/mongo.definitions.sh
       - ./mongo/mongod-wait.sh:/usr/local/bin/mongod:ro

@@ -12,8 +12,11 @@ include:
       # TLS of the server only (ORO_SERVICES_TLS=tls), otherwise compose-no.yaml. The DSN of the clients are in
       # .env-ce-*-tls: a file included here can't change the services of this file.
       - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}}.yaml
+      # Data of the server in memory (ORO_SERVICES_TMPFS=tmpfs), otherwise compose-no.yaml
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-session-storage}.yaml
       - compose-db.yaml
       - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-db}.yaml
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-db}.yaml
       - compose-mail.yaml
       - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-mail}.yaml
 
@@ -33,8 +36,6 @@ services:
       "ws":
         condition: service_started
       "cron":
-        condition: service_started
-      "operator":
         condition: service_started
 
   waf:
@@ -193,7 +194,6 @@ services:
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache:ro
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   ws:
@@ -264,31 +264,7 @@ services:
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache:ro
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-
-  operator:
-    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
-    command: operator
-    env_file:
-      - .env
-      - .env-ce-${ORO_CE-no}
-      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
-    environment:
-      COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
-      DOCKER_API_VERSION: v1.43
-      ORO_LOG_PATH: php://stderr
-    restart: unless-stopped
-    depends_on:
-      "php-fpm-app":
-        condition: service_healthy
-    volumes:
-      - /run/docker.sock:/run/docker.sock
-      - oro_app:/var/www/oro
-      - cache:/var/www/oro/var/cache
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -417,8 +393,6 @@ services:
     depends_on:
       "consumer":
         condition: service_started
-      "operator":
-        condition: service_started
       "chrome":
         condition: service_healthy
       "waf-behat":
@@ -427,7 +401,6 @@ services:
     volumes:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       - var_data:/var/www/oro/var/data
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
       - ./../docker/behat.yml:/var/www/oro/behat_oro.yml
 
@@ -688,7 +661,6 @@ services:
 
 volumes:
   cache:
-  multihost_operation_folder:
   maintenance_folder:
   nginx:
   nginx-waf:

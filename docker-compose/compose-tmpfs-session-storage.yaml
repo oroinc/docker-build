@@ -1,0 +1,6 @@
+# Data of the Redis or Dragonfly server (snapshots) in memory (ORO_SERVICES_TMPFS=tmpfs), instead of the anonymous
+# volume of the image on disk. Both keep it in /data. Included by compose-common.yaml.
+services:
+  session-storage:
+    tmpfs:
+      - /data

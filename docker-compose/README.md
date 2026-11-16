@@ -25,6 +25,8 @@ ORO_PDF_CONVERSION_SERVICE=no
 ORO_SEARCH_SERVICE=no
 ```
 
+### Multihost
+Multihost operations are not supported: no service processes the multihost operation files, and the application runs with multihost disabled (`ORO_MULTIHOST_ENABLED=false`, the default). Do not set `ORO_MULTIHOST_ENABLED=true`: operations such as the schema update of extended entities would wait for a response until the timeout.
 
 ## This configuration allows you to perform the following actions:
 
@@ -80,6 +82,14 @@ To check the connections, run `redis-cli --tls --cacert /etc/oro-services-tls/ca
 > **NOTE:** `tls` and an empty value are the only supported values. Do not set `ORO_SERVICES_TLS=no` to turn TLS off: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
 
 > **NOTE:** The application caches the DSN. After you turn TLS on or off, run `restore` or `warmup-cache` again.
+
+### Data of the services in memory
+By default (`ORO_SERVICES_TMPFS=tmpfs` in the `.env` file), PostgreSQL, MongoDB, Elasticsearch, RabbitMQ and Redis/Dragonfly keep their data in memory (tmpfs) instead of the volume of the image or the container layer on disk. This removes their disk I/O, which matters on CI nodes with several environments at once. The data is lost when the container stops, restarts or is recreated, including a restart after a crash and a recreation after a change of its configuration; consecutive `docker compose up` calls in the same project keep it, because the services stay running. Each tmpfs can grow up to half of the RAM of the host (the default size), and its pages count against the memory of the container. To keep the data on disk, set the variable empty in the `.env` file or in the environment: `ORO_SERVICES_TMPFS= docker compose up ...`.
+
+- The tmpfs of each service is in `compose-tmpfs-*.yaml`: `compose-tmpfs-db.yaml`, `compose-tmpfs-file-storage-mongo.yaml`, `compose-tmpfs-es.yaml`, `compose-tmpfs-rmq.yaml` and `compose-tmpfs-session-storage.yaml` (Redis and Dragonfly both keep their data in `/data`). `compose-tmpfs-file-storage-file.yaml` is empty: with `ORO_FILE_STORAGE_SERVICE=file` there is no file storage service.
+- The named volumes of the application (`oro_app`, `cache`, `var_data`, `public_storage`, `private_storage` and others) stay on disk. The application only reads `oro_app` and `cache` (the cache is read-only), so memory would not reduce disk I/O for them. Also, a tmpfs volume of the local driver is unmounted, and its data is lost, as soon as no container uses it, so the content would not survive from `volume-init`, `install` or `restore` to the services that use it.
+
+> **NOTE:** `tmpfs` and an empty value are the only supported values. Do not set `ORO_SERVICES_TMPFS=no`: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
 
 ## Actions
 

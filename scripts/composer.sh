@@ -41,6 +41,7 @@ REPO_PATH="$APP_SRC"
 # command passed to composer
 COMPOSER_COMMAND='--optimize-autoloader --prefer-dist install'
 COMPOSER_VARIABLES='-e COMPOSER -e COMPOSER_ALLOW_SUPERUSER -e COMPOSER_ALLOW_XDEBUG -e COMPOSER_AUTH -e COMPOSER_BIN_DIR -e COMPOSER_CACHE_DIR -e COMPOSER_CAFILE -e COMPOSER_DISABLE_XDEBUG_WARN -e COMPOSER_DISCARD_CHANGES -e COMPOSER_HOME -e COMPOSER_HTACCESS_PROTECT -e COMPOSER_MEMORY_LIMIT -e COMPOSER_MIRROR_PATH_REPOS -e COMPOSER_NO_INTERACTION -e COMPOSER_PROCESS_TIMEOUT -e COMPOSER_ROOT_VERSION -e COMPOSER_VENDOR_DIR -e COMPOSER_RUNTIME_ENV -e HTTP_PROXY -e COMPOSER_MAX_PARALLEL_HTTP -e HTTP_PROXY_REQUEST_FULLURI -e HTTPS_PROXY_REQUEST_FULLURI -e COMPOSER_SELF_UPDATE_TARGET -e NO_PROXY -e COMPOSER_DISABLE_NETWORK -e COMPOSER_DEBUG_EVENTS -e COMPOSER_NO_DEV -e COMPOSER_PREFER_STABLE -e COMPOSER_PREFER_LOWEST -e COMPOSER_IGNORE_PLATFORM_REQ -e COMPOSER_IGNORE_PLATFORM_REQS'
+NPM_VARIABLES='-e NPM_TOKEN -e PNPM_CONFIG_NPMRC_AUTH_FILE -e pnpm_config_npmrc_auth_file -e PNPM_CONFIG__AUTH -e pnpm_config__auth'
 export ORO_WEBPACK_STATS="${ORO_WEBPACK_STATS-normal}"
 # services which can be set in parameters.yml
 PROPERTIES=''
@@ -108,7 +109,7 @@ run_composer() {
     set -x
     # Split comma-separated commands on the host to preserve inner whitespace
     IFS=',' read -r -a __composer_cmds <<< "$1"
-    time docker run --rm --memory=7g --security-opt label=disable --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" -v "$REPO_PATH":"$REPO_PATH" -v "$APP_SRC":"$APP_SRC" -w "$APP_SRC" -e ORO_DB_VERSION $COMPOSER_VARIABLES -e ORO_WEBPACK_STATS "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "set -x && for c in \"\$@\"; do c_trim=\$(echo \"\$c\" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'); if [ -n \"\$c_trim\" ]; then eval composer -vvv --ansi --no-interaction --working-dir='$APP_SRC' \$c_trim; fi; done" -- "${__composer_cmds[@]}" || {
+    time docker run --rm --memory=7g --security-opt label=disable --tmpfs /tmp -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" -v "$REPO_PATH":"$REPO_PATH" -v "$APP_SRC":"$APP_SRC" -w "$APP_SRC" -e ORO_DB_VERSION $COMPOSER_VARIABLES $NPM_VARIABLES -e ORO_WEBPACK_STATS "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" bash -c "set -x && for c in \"\$@\"; do c_trim=\$(echo \"\$c\" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'); if [ -n \"\$c_trim\" ]; then eval composer -vvv --ansi --no-interaction --working-dir='$APP_SRC' \$c_trim; fi; done" -- "${__composer_cmds[@]}" || {
         set +x
         echo -e "${RED}ERROR to run composer${NC}"
         exit 1

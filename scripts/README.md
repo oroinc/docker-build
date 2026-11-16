@@ -34,6 +34,13 @@ where:
 
 All composer environment variables are supported: https://getcomposer.org/doc/03-cli.md#environment-variables
 
+The script also passes the credentials of a private npm registry to the container:
+- `NPM_TOKEN` - for a project `.npmrc` that refers to it as `${NPM_TOKEN}`. Only npm expands it: pnpm 12 does not expand variables in the credentials of a project `.npmrc`, unless the same file is set as `PNPM_CONFIG_NPMRC_AUTH_FILE`.
+- `PNPM_CONFIG_NPMRC_AUTH_FILE` (or `pnpm_config_npmrc_auth_file`) - the path to a user-level auth file for pnpm with lines such as `//<registry>/:_authToken=${NPM_TOKEN}`, where pnpm expands the variables. The file replaces `~/.npmrc` for pnpm, and a `registry` line in it applies where the project `.npmrc` does not set a registry. The file must be in a folder mounted in the container: the home folder, the application, or the repository (`-r`).
+- `pnpm_config__auth` (or `PNPM_CONFIG__AUTH`) - the tokens of the registries for pnpm as JSON: `'{"https://<registry>":{"@":{"authToken":"<token>"}}}'`. The `"@"` entry also makes this registry the default one instead of the `registry` setting of the project `.npmrc`.
+
+The `pnpm_config_//<registry>/:_authToken` variables of pnpm are not supported: PHP does not pass a variable with a dot in its name to the scripts that composer runs.
+
 If you use a monolithic repository, specify `COMPOSER_MIRROR_PATH_REPOS=1` to copy packages to the vendors folder rather than creating links.
 
 On weak computers, increase the timeout for webpack to be able to build assets: `COMPOSER_PROCESS_TIMEOUT=600`

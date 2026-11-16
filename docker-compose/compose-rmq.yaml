@@ -1,6 +1,8 @@
-# RabbitMQ, and its TLS for ORO_SERVICES_TLS=tls. Only an include here: a service defined in this file would
-# take priority over the TLS override, which would then be ignored without an error.
+# RabbitMQ, its TLS for ORO_SERVICES_TLS=tls and its data in memory for ORO_SERVICES_TMPFS=tmpfs. Only an include
+# here: a service defined in this file would take priority over the overrides, which would then be ignored without an
+# error.
 include:
   - path:
       - compose-rmq-service.yaml
       - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-rmq}.yaml
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-rmq}.yaml

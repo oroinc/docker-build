@@ -8,8 +8,6 @@ services:
       POSTGRES_DB: ${ORO_DB_NAME}
       POSTGRES_USER: ${ORO_DB_USER}
       POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
-    tmpfs:
-      - /var/lib/postgresql
     healthcheck:
       test: "pg_isready -h 127.0.0.1 -p ${ORO_DB_PORT} -U${ORO_DB_USER} -d${ORO_DB_NAME}"
       start_period: 60s

@@ -15,7 +15,6 @@ services:
   ws: *services-tls-client
   consumer: *services-tls-client
   cron: *services-tls-client
-  operator: *services-tls-client
   install: *services-tls-client
   install-test: *services-tls-client
   functional-init: *services-tls-client
