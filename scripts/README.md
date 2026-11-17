@@ -34,6 +34,13 @@ where:
 
 All composer environment variables are supported: https://getcomposer.org/doc/03-cli.md#environment-variables
 
+The script also passes the credentials of a private npm registry to the container:
+- `NPM_TOKEN` - for a project `.npmrc` that refers to it as `${NPM_TOKEN}`. npm and pnpm 10 of the 7.0 builder image expand it. Newer pnpm (10.34.2 and later, 11.5.3 and later) does not expand variables in the credentials of a project `.npmrc`, unless the same file is set as `PNPM_CONFIG_NPMRC_AUTH_FILE`.
+- `PNPM_CONFIG_NPMRC_AUTH_FILE` (or `pnpm_config_npmrc_auth_file`) - the path to a user-level auth file for pnpm with lines such as `//<registry>/:_authToken=${NPM_TOKEN}`, where pnpm expands the variables. pnpm 11 and later read it, pnpm 10 ignores it. The file replaces `~/.npmrc` for pnpm, and a `registry` line in it applies where the project `.npmrc` does not set a registry. The file must be in a folder mounted in the container: the home folder, the application, or the repository (`-r`).
+- `pnpm_config__auth` (or `PNPM_CONFIG__AUTH`) - the tokens of the registries for pnpm as JSON: `'{"https://<registry>":{"@":{"authToken":"<token>"}}}'`. The `"@"` entry also makes this registry the default one instead of the `registry` setting of the project `.npmrc`.
+
+The `pnpm_config_//<registry>/:_authToken` variables of pnpm are not supported: PHP does not pass a variable with a dot in its name to the scripts that composer runs.
+
 If you use a monolithic repository, specify `COMPOSER_MIRROR_PATH_REPOS=1` to copy packages to the vendors folder rather than creating links.
 
 On weak computers, increase the timeout for webpack to be able to build assets: `COMPOSER_PROCESS_TIMEOUT=600`
@@ -58,7 +65,7 @@ You can check tests or specify other options for phpunit after the script:
 ```
 
 ### `test_php-cs-fixer.sh`, `test_phpcs.sh`, `test_phpmd.sh`
-These are scripts to run php-cs-fixer or phpcs or phpmd. If you do not specify a file (by setting it in variables DIR_DIFF and FILE_DIFF) with a list of files, then it checks all found php files. Otherwise, it only checks the files from the list.
+These are scripts to run php-cs-fixer or phpcs or phpmd. If you do not specify a file (by setting it in variables DIR_DIFF and FILE_DIFF) with a list of files, then it checks all found php files. Otherwise, it only checks the files from the list, or all of them when the list has a change of the linter config (`package/platform/build/`) or of the PHP dependencies (`composer.json`, `dev.json` or `dev.lock` of `application/*`).
 ```bash
 ../../docker-build/scripts/test_php-cs-fixer.sh -b master-latest
 ```
@@ -81,13 +88,13 @@ This script runs a Code Style (CS) check for Behat .feature files. It filters th
 ```
 
 ### `test_javascript_eslint.sh`
-This script performs ESLint analysis on JavaScript files located in Oro bundles.
+This script performs ESLint analysis on JavaScript files located in Oro bundles. With `var/logs/diff.txt` it checks only the changed `.js` files, or all of them when the change touches the ESLint config (`application/*/.eslint*`) or the JS dependencies (`package.json` or `pnpm-lock.yaml` of `application/*` or `application/*/dev`).
 ```bash
 ../../docker-build/scripts/test_javascript_eslint.sh -b master-latest
 ```
 
 ### `test_javascript_stylelint.sh`
-This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore.
+This script performs SCSS linting for Oro bundles using Stylelint. It analyzes only ```.scss``` files that were changed and not excluded by ```.stylelint``` ignore, or all of them when the change touches the Stylelint config (`npm-package/stylelint-config`, `application/*/.stylelint*`) or the JS dependencies (`package.json` or `pnpm-lock.yaml` of `application/*` or `application/*/dev`).
 ```bash
 ../../docker-build/scripts/test_javascript_stylelint.sh -b master-latest
 ```

@@ -1,0 +1,21 @@
+# TLS of Mailpit (ORO_MAIL_SERVICE=mailpit): of the SMTP server on the same port 1025 and of the web UI and API on
+# 1080 (ORO_SERVICES_TLS=tls). Included by compose-common.yaml, so the services of the application can't be changed
+# here: their DSN are in .env-ce-*-tls.
+# Mailpit has one SMTP port, so one TLS mode at a time: ORO_MAILER_TLS_MODE=starttls (default, smtp://...?require_tls=1)
+# or ORO_MAILER_TLS_MODE=tls (implicit TLS, smtps://). Change ORO_MAILER_DSN together with it.
+services:
+  mail:
+    command:
+      - --smtp-require-${ORO_MAILER_TLS_MODE:-starttls}
+    environment:
+      MP_SMTP_TLS_CERT: /etc/oro-services-tls/server.pem
+      MP_SMTP_TLS_KEY: /etc/oro-services-tls/server-key.pem
+      MP_UI_TLS_CERT: /etc/oro-services-tls/server.pem
+      MP_UI_TLS_KEY: /etc/oro-services-tls/server-key.pem
+      # Mailpit refuses to require TLS while plain-text auth is allowed
+      MP_SMTP_AUTH_ALLOW_INSECURE: "false"
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - services-tls:/etc/oro-services-tls:ro

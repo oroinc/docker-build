@@ -220,6 +220,7 @@ elif [[ "$1" == 'functional' ]]; then
             else
                 # Collect logs to error log and set variable that test failed
                 cat "$APP_FOLDER/var/logs/functional_output.log" >>"$APP_FOLDER/var/logs/functional_errors.log"
+                [[ -e "$APP_FOLDER/var/logs/test.log" ]] && cat "$APP_FOLDER/var/logs/test.log" >>"$APP_FOLDER/var/logs/functional_errors.test.log"
                 RETVAL_GLOBAL=1
             fi
             [[ -e "$APP_FOLDER/var/logs/functional_output.log" ]] && mv -f "$APP_FOLDER/var/logs/functional_output.log" "$APP_FOLDER/var/logs/functional/${LOGNAME}.output.log" || :

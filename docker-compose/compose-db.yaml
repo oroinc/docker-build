@@ -1,0 +1,16 @@
+services:
+  db:
+    image: ${ORO_PROJECT}postgis:${ORO_PG_VER}
+    labels:
+      com.symfony.server.service-prefix: ORO_DB
+    environment:
+      POSTGRES_ROOT_PASSWORD: ${ORO_DB_ROOT_PASSWORD}
+      POSTGRES_DB: ${ORO_DB_NAME}
+      POSTGRES_USER: ${ORO_DB_USER}
+      POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
+    healthcheck:
+      test: "pg_isready -h 127.0.0.1 -p ${ORO_DB_PORT} -U${ORO_DB_USER} -d${ORO_DB_NAME}"
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      - ./postgres/uuid-ossp.sql:/docker-entrypoint-initdb.d/uuid-ossp.sql:ro

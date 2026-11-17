@@ -1,0 +1,20 @@
+# TLS of the Redis server only (ORO_SERVICES_TLS=tls). Included by compose-common.yaml, so the services of the
+# application can't be changed here: their DSN are in .env-ce-*-tls.
+services:
+  session-storage:
+    command: >-
+      redis-server --bind 0.0.0.0 --port 0 --tls-port 6379
+      --tls-cert-file /etc/oro-services-tls/server.pem
+      --tls-key-file /etc/oro-services-tls/server-key.pem
+      --tls-ca-cert-file /etc/oro-services-tls/ca.pem
+      --tls-auth-clients no
+      --requirepass ${ORO_REDIS_PASSWORD}
+    environment:
+      REDISCLI_AUTH: ${ORO_REDIS_PASSWORD}
+    healthcheck:
+      test: "[ $$(redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping) = 'PONG' ]"
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - services-tls:/etc/oro-services-tls:ro

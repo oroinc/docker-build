@@ -1,0 +1,12 @@
+services:
+  # Mailpit (ORO_MAIL_SERVICE=mailpit): SMTP on 1025, the web UI and API on 1080 (ORO_MAILER_WEB_URL).
+  mail:
+    image: ${ORO_PROJECT}mailpit:${ORO_MAILPIT_VER}
+    hostname: mail
+    environment:
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+      MP_UI_BIND_ADDR: 0.0.0.0:1080
+      # Like mailcatcher: any credentials, or none, over plain SMTP too
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    restart: unless-stopped

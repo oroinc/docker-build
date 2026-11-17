@@ -1,0 +1,22 @@
+# TLS of the Dragonfly server only (ORO_SERVICES_TLS=tls). Included by compose-common.yaml, so the services of the
+# application can't be changed here: their DSN are in .env-ce-*-tls.
+# Dragonfly does not start with TLS and without authentication, so it requires the password.
+services:
+  session-storage:
+    command: >-
+      --cache_mode true --maxmemory 1g --proactor_threads 2
+      --tls --tls_cert_file /etc/oro-services-tls/server.pem --tls_key_file /etc/oro-services-tls/server-key.pem
+      --requirepass ${ORO_REDIS_PASSWORD}
+    environment:
+      REDISCLI_AUTH: ${ORO_REDIS_PASSWORD}
+    # The healthcheck of the image only opens the port: check a PING over TLS
+    healthcheck:
+      test: "[ $$(redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping) = 'PONG' ]"
+      interval: 15s
+      timeout: 30s
+      start_period: 20s
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      - services-tls:/etc/oro-services-tls:ro

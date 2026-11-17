@@ -38,6 +38,7 @@ WORKDIR=''
 BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"
 DIFF_PHP="diff_php-cs-fixer.txt"
 FILE_DIFF="diff.txt"
+FULL_CHECK_FILES='^(application/[^/]+/((composer|dev)\.json|dev\.lock)$|package/platform/build/|docker-build/scripts/test_php-cs-fixer\.sh$)'
 EXCLUDED_PACKAGES="(/doctrine-extensions|/magento1|/crm-magento1-connector|/magento-contact-us|/crm-magento-embedded-contact-us|/api-doc-bundle|/maker|/oauth2-server/src/Oro/Bundle/OAuth2ServerBundle/Controller/ClientController.php)"
 ORO_TESTS_PATH="${ORO_TESTS_PATH-vendor/oro}"
 # Variable for fix work with new php-8.2
@@ -66,7 +67,14 @@ run() {
         mkdir -p "$HOME/.parallel"
         docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" parallel --record-env
     fi
-    if [[ -e "$LOGS/$FILE_DIFF" ]]; then
+    # A change of the PHP-CS-Fixer config (in the platform build folder) or of the PHP dependencies (which include
+    # PHP-CS-Fixer) can break the files the change did not touch, so then all files are checked, not only the changed ones
+    local check_all=''
+    if [[ -e "$LOGS/$FILE_DIFF" ]] && grep -qE "$FULL_CHECK_FILES" "$LOGS/$FILE_DIFF"; then
+        echo "The PHP-CS-Fixer config or the PHP dependencies were changed: all files are checked"
+        check_all=1
+    fi
+    if [[ -e "$LOGS/$FILE_DIFF" && -z "$check_all" ]]; then
         pushd "$WORKDIR" >/dev/null 2>&1 || {
             echo "Can't enter to folder $WORKDIR"
             exit 1

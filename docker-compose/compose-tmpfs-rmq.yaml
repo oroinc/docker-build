@@ -1,0 +1,5 @@
+# Data of the RabbitMQ server in memory (ORO_SERVICES_TMPFS=tmpfs), instead of the anonymous volume of the image on disk.
+services:
+  mq:
+    tmpfs:
+      - /var/lib/rabbitmq

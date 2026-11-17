@@ -1,0 +1,22 @@
+# TLS of the Elasticsearch server only (ORO_SERVICES_TLS=tls). The DSN of the clients are in .env-ce-no-tls.
+# Elasticsearch ignores the http.ssl settings without security and keeps serving plain http, so security is on,
+# with anonymous access as superuser: no credentials, as without TLS.
+services:
+  search-engine:
+    environment:
+      xpack.security.enabled: true
+      xpack.security.authc.anonymous.roles: superuser
+      xpack.security.authc.anonymous.authz_exception: true
+      xpack.security.http.ssl.enabled: true
+      xpack.security.http.ssl.certificate: certs/server.pem
+      xpack.security.http.ssl.key: certs/server-key.pem
+      xpack.security.http.ssl.certificate_authorities: certs/ca.pem
+      xpack.security.transport.ssl.enabled: false
+    healthcheck:
+      test: "curl -sfL --cacert /usr/share/elasticsearch/config/certs/ca.pem 'https://localhost:9200/_cluster/health?pretty&wait_for_status=yellow&timeout=5s'"
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
+    volumes:
+      # Elasticsearch reads certificates only from its config directory
+      - services-tls:/usr/share/elasticsearch/config/certs:ro

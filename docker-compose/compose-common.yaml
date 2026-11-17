@@ -9,6 +9,18 @@ x-depends_on: &default-depends_on
 include:
   - path:
       - compose-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}.yaml
+      # TLS of the server only (ORO_SERVICES_TLS=tls), otherwise compose-no.yaml. The DSN of the clients are in
+      # .env-ce-*-tls: a file included here can't change the services of this file.
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-session-storage-${ORO_SESSION_STORAGE_TYPE-redis}}.yaml
+      # Data of the server in memory (ORO_SERVICES_TMPFS=tmpfs), otherwise compose-no.yaml
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-session-storage}.yaml
+      - compose-db.yaml
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-db}.yaml
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-db}.yaml
+      # The mail service: ORO_MAIL_SERVICE=mailcatcher (default) or mailpit. MailCatcher has no TLS, so there is no
+      # compose-tls-mail-mailcatcher.yaml on purpose: ORO_SERVICES_TLS=tls needs ORO_MAIL_SERVICE=mailpit.
+      - compose-mail-${ORO_MAIL_SERVICE:-mailcatcher}.yaml
+      - compose-${ORO_SERVICES_TLS:-no}${ORO_SERVICES_TLS:+-mail-${ORO_MAIL_SERVICE:-mailcatcher}}.yaml
 
 services:
   application:
@@ -17,6 +29,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     depends_on:
       "waf":
         condition: service_started
@@ -25,8 +38,6 @@ services:
       "ws":
         condition: service_started
       "cron":
-        condition: service_started
-      "operator":
         condition: service_started
 
   waf:
@@ -83,6 +94,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     healthcheck:
       test: "curl -If http://127.0.0.1:${ORO_UPSTREAM_PORT}/"
@@ -106,6 +118,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     volumes:
       - oro_app:/var/www/oro
 
@@ -115,6 +128,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     volumes:
       - oro_test:/var/www/oro
 
@@ -149,6 +163,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     depends_on:
       "php-fpm-app":
         condition: service_healthy
@@ -161,6 +176,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     healthcheck:
@@ -180,7 +196,6 @@ services:
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache:ro
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
   ws:
@@ -189,6 +204,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -211,6 +227,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     user: ${ORO_USER_RUNTIME:-www-data}
     init: true
@@ -234,6 +251,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     restart: unless-stopped
     ulimits:
       nofile:
@@ -248,30 +266,7 @@ services:
     volumes:
       - oro_app:/var/www/oro
       - cache:/var/www/oro/var/cache:ro
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-
-  operator:
-    image: $ORO_IMAGE_INIT${ORO_LANGUAGE_SUFFIX-}:$ORO_IMAGE_TAG
-    command: operator
-    env_file:
-      - .env
-      - .env-ce-${ORO_CE-no}
-    environment:
-      COMPOSE_PROJECT_NAME: $COMPOSE_PROJECT_NAME
-      DOCKER_API_VERSION: v1.43
-      ORO_LOG_PATH: php://stderr
-    restart: unless-stopped
-    depends_on:
-      "php-fpm-app":
-        condition: service_healthy
-    volumes:
-      - /run/docker.sock:/run/docker.sock
-      - oro_app:/var/www/oro
-      - cache:/var/www/oro/var/cache
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
-      - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
-      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   install:
     image: $ORO_IMAGE:$ORO_IMAGE_TAG
@@ -280,6 +275,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_SAMPLE_DATA:
     depends_on:
@@ -295,6 +291,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -309,6 +306,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_LOCAL_RUN:
       ORO_IMAGE_TAG:
@@ -327,6 +325,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_FUNCTIONAL_ARGS:
       ORO_LOCAL_RUN:
@@ -350,6 +349,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -374,6 +374,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_LOCAL_RUN:
@@ -387,12 +388,14 @@ services:
       ORO_BEHAT_ATTEMPTS:
       BUILD_URL:
       ORO_ENV:
+      # 1 runs the Behat sessions on the Playwright driver, which needs Node in the test image.
+      ORO_BEHAT_PLAYWRIGHT: ${ORO_BEHAT_PLAYWRIGHT-0}
+      # The API of the Behat email client is the API of the mail service
+      ORO_MAILER_WEB_TYPE: ${ORO_MAIL_SERVICE:-mailcatcher}
     tmpfs:
       - /tmp
     depends_on:
       "consumer":
-        condition: service_started
-      "operator":
         condition: service_started
       "chrome":
         condition: service_healthy
@@ -402,7 +405,6 @@ services:
     volumes:
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
       - var_data:/var/www/oro/var/data
-      - multihost_operation_folder:$ORO_MULTIHOST_OPERATION_FOLDER
       - ./../docker/docker-entrypoint-test.sh:/usr/local/bin/docker-entrypoint.sh
       - ./../docker/behat.yml:/var/www/oro/behat_oro.yml
 
@@ -413,6 +415,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_BEHAT_ARGS:
       ORO_APP_PROTOCOL:
@@ -422,6 +425,9 @@ services:
       ORO_BEHAT_OPTIONS:
       ORO_ARTIFACT_DIR:
       BUILD_URL:
+      ORO_BEHAT_PLAYWRIGHT: ${ORO_BEHAT_PLAYWRIGHT-0}
+      # The API of the Behat email client is the API of the mail service
+      ORO_MAILER_WEB_TYPE: ${ORO_MAIL_SERVICE:-mailcatcher}
     tmpfs:
       - /tmp
     depends_on:
@@ -438,6 +444,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       USE_SELENIUM_GRID: 1
       KARMA_HOSTNAME: karma
@@ -472,6 +479,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_APP_DOMAIN:
       ORO_APP_ADDON_DOMAINS:
@@ -499,6 +507,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
@@ -536,6 +545,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     build:
       context: ./../docker
       dockerfile: Dockerfile-init
@@ -575,6 +585,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
@@ -592,6 +603,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -606,6 +618,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
@@ -621,6 +634,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV: test
     depends_on:
@@ -635,6 +649,7 @@ services:
     env_file:
       - .env
       - .env-ce-${ORO_CE-no}
+      - .env-ce-${ORO_CE-no}${ORO_SERVICES_TLS:+-tls}
     environment:
       ORO_ENV:
     depends_on:
@@ -644,29 +659,6 @@ services:
       - cache:/var/www/oro/var/cache
       - maintenance_folder:${ORO_MAINTENANCE_LOCK_FOLDER}
 
-  db:
-    image: ${ORO_PROJECT}postgis:${ORO_PG_VER}
-    labels:
-      com.symfony.server.service-prefix: ORO_DB
-    environment:
-      POSTGRES_ROOT_PASSWORD: ${ORO_DB_ROOT_PASSWORD}
-      POSTGRES_DB: ${ORO_DB_NAME}
-      POSTGRES_USER: ${ORO_DB_USER}
-      POSTGRES_PASSWORD: ${ORO_DB_PASSWORD}
-    tmpfs:
-      - /var/lib/postgresql
-    healthcheck:
-      test: "pg_isready -h 127.0.0.1 -p ${ORO_DB_PORT} -U${ORO_DB_USER} -d${ORO_DB_NAME}"
-      start_period: 60s
-    restart: unless-stopped
-    volumes:
-      - ./postgres/uuid-ossp.sql:/docker-entrypoint-initdb.d/uuid-ossp.sql:ro
-
-  mail:
-    image: ${ORO_PROJECT}mailcatcher
-    hostname: mail
-    restart: unless-stopped
-
   blackfire:
     image: ${ORO_PROJECT}blackfire:2
     environment:
@@ -675,7 +667,6 @@ services:
 
 volumes:
   cache:
-  multihost_operation_folder:
   maintenance_folder:
   nginx:
   nginx-waf:

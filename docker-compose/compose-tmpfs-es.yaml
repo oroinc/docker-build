@@ -1,0 +1,5 @@
+# Data of the Elasticsearch server in memory (ORO_SERVICES_TMPFS=tmpfs), instead of the container layer on disk.
+services:
+  search-engine:
+    tmpfs:
+      - /usr/share/elasticsearch/data

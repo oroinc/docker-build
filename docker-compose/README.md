@@ -25,6 +25,8 @@ ORO_PDF_CONVERSION_SERVICE=no
 ORO_SEARCH_SERVICE=no
 ```
 
+### Multihost
+Multihost operations are not supported: no service processes the multihost operation files, and the application runs with multihost disabled (`ORO_MULTIHOST_ENABLED=false`, the default). Do not set `ORO_MULTIHOST_ENABLED=true`: operations such as the schema update of extended entities would wait for a response until the timeout.
 
 ## This configuration allows you to perform the following actions:
 
@@ -53,9 +55,41 @@ The file contains several sections of variables:
 
 ### SSL certificate
 For SSL, a special web service `waf-behat` or `waf` is used. For more details, [see](https://gitlab.oro.cloud/orocloud-devops/oro-cloud-docker/-/blob/master/jenkins/nginx-waf/oel8/README.md)
-If you do not have a certificate, a self-signed one will be generated for testing.
-You can use a CA ROOT certificate sign a self-signed certificate. Uncomment variable `CAROOT` in the `.env` file and point it to the folder where CA ROOT certificate and key are located. In this case CAROOT certificates will be located on the host and can be imported into the `nss` database and used in Chrome.
+
+The certificates are signed by one CA. The `pki-init` service runs before the other services and prepares it:
+- If the `CAROOT` variable points to a folder on the host with `rootCA.pem` and `rootCA-key.pem` (the files of [mkcert](https://github.com/FiloSottile/mkcert)), this CA is used. It replaces a CA from a previous run. The folder is mounted read-only and is not changed. If the files are missing, the key does not match the certificate, or the certificate is not a CA, `pki-init` fails and the stack does not start.
+- Otherwise, the CA from a previous run is used, or a new CA is created in `ORO_CAROOT` (the `etc-pki` volume).
+
+`pki-init` adds the CA to the trust store in the `etc-pki` volume, which the services of the application, behat and chrome mount. `waf-init` signs the certificate of nginx with this CA.
+
+To make the browser on the host trust the application, use your own CA: install it on the host with `mkcert -install`, uncomment the `CAROOT` variable in the `.env` file and point it to the folder of the CA (`mkcert -CAROOT`).
 For more details, see https://web.dev/articles/how-to-use-local-https.
+
+> **NOTE:** `waf-init` does not run again while the `nginx-waf` volume contains the result of a previous run. After a change of the CA, remove the volume (`docker compose down -v`), otherwise nginx keeps the certificate of the previous CA.
+
+### TLS for Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg
+TLS is off by default (`ORO_SERVICES_TLS=` is empty in the `.env` file): the application connects to Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg over plain connections. To turn TLS on, set `ORO_SERVICES_TLS=tls` and `ORO_MAIL_SERVICE=mailpit` in the `.env` file or in the environment: `ORO_SERVICES_TLS=tls ORO_MAIL_SERVICE=mailpit docker compose up ...`. With TLS on, the application connects over TLS only and the plain ports are closed.
+
+- `pki-init` issues one certificate for `session-storage`, `mq` and `search-engine`, signed by the CA above.
+- The DSN over TLS are in `.env-ce-no-tls` (EE) and `.env-ce-yes-tls` (CE). They are loaded after `.env-ce-no` / `.env-ce-yes` and override only the DSN: `rediss://`, `amqps://` (port 5671) and `https://` (Elasticsearch, and Gotenberg on the same port 3000), with `ssl[cafile]=/etc/oro-services-tls/ca.pem`. For PostgreSQL, `ORO_DB_DSN` has `sslmode=verify-full&sslrootcert=/etc/oro-services-tls/ca.pem`, and `PGSSLMODE` / `PGSSLROOTCERT` make `psql` and `pg_dump` of the entrypoints (backup, restore) use TLS too.
+- The TLS of the servers is in `compose-tls-*.yaml`. Elasticsearch runs with security enabled and anonymous access as `superuser`, because it ignores TLS without security.
+- PostgreSQL accepts TCP connections with TLS only (`hostnossl ... reject` in its `pg_hba.conf`); the local socket stays for its own entrypoint. The image keeps its entrypoint and command: `postgres/tls.sh` in `docker-entrypoint-initdb.d` takes the files from `ORO_DB_SSL_CERT_FILE`, `ORO_DB_SSL_KEY_FILE` and `ORO_DB_SSL_CA_FILE` and adds only the `pg_hba.conf` lines that are not there yet. PostgreSQL refuses a key that others can read, so `pki-init` issues `db-key.pem` of `root:999` with mode `0640` next to `server-key.pem`.
+- The `mail` service is MailCatcher by default (`ORO_MAIL_SERVICE=mailcatcher`). MailCatcher has no TLS, so TLS needs Mailpit (`ORO_MAIL_SERVICE=mailpit`); with MailCatcher, compose fails with `compose-tls-mail-mailcatcher.yaml: no such file or directory`. Both have SMTP on port 1025 and the web UI and API on port 1080 (`ORO_MAILER_WEB_URL`, over HTTPS with TLS), and the Behat email client uses the API of the selected service (`ORO_MAILER_WEB_TYPE`). The Behat email client supports Mailpit since 7.0.6. Mailpit has one SMTP port 1025, so one TLS mode at a time: `ORO_MAILER_TLS_MODE=starttls` (default, `ORO_MAILER_DSN=smtp://mail:1025?require_tls=1&ssl[cafile]=...`) or `ORO_MAILER_TLS_MODE=tls` (implicit TLS, `smtps://mail:1025?ssl[cafile]=...`). Change `ORO_MAILER_DSN` together with the mode.
+- Redis and Dragonfly require the password `ORO_REDIS_PASSWORD` (set in `.env-ce-*-tls`), because Dragonfly does not start with TLS and without authentication. The DSN contain it: `rediss://:<password>@session-storage:6379/...`.
+
+To check the connections, run `redis-cli --tls --cacert /etc/oro-services-tls/ca.pem -h localhost ping` in `session-storage`, or `curl --cacert /etc/oro-services-tls/ca.pem https://search-engine:9200` (or `https://pdf-conversion:3000/health`) in a service of the application, or `psql "host=db user=$ORO_DB_USER dbname=$ORO_DB_NAME sslmode=verify-full sslrootcert=/etc/oro-services-tls/ca.pem"` in `db`.
+
+> **NOTE:** `tls` and an empty value are the only supported values. Do not set `ORO_SERVICES_TLS=no` to turn TLS off: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
+
+> **NOTE:** The application caches the DSN. After you turn TLS on or off, run `restore` or `warmup-cache` again.
+
+### Data of the services in memory
+By default (`ORO_SERVICES_TMPFS=tmpfs` in the `.env` file), PostgreSQL, MongoDB, Elasticsearch, RabbitMQ and Redis/Dragonfly keep their data in memory (tmpfs) instead of the volume of the image or the container layer on disk. This removes their disk I/O, which matters on CI nodes with several environments at once. The data is lost when the container stops, restarts or is recreated, including a restart after a crash and a recreation after a change of its configuration; consecutive `docker compose up` calls in the same project keep it, because the services stay running. Each tmpfs can grow up to half of the RAM of the host (the default size), and its pages count against the memory of the container. To keep the data on disk, set the variable empty in the `.env` file or in the environment: `ORO_SERVICES_TMPFS= docker compose up ...`.
+
+- The tmpfs of each service is in `compose-tmpfs-*.yaml`: `compose-tmpfs-db.yaml`, `compose-tmpfs-file-storage-mongo.yaml`, `compose-tmpfs-es.yaml`, `compose-tmpfs-rmq.yaml` and `compose-tmpfs-session-storage.yaml` (Redis and Dragonfly both keep their data in `/data`). `compose-tmpfs-file-storage-file.yaml` is empty: with `ORO_FILE_STORAGE_SERVICE=file` there is no file storage service.
+- The named volumes of the application (`oro_app`, `cache`, `var_data`, `public_storage`, `private_storage` and others) stay on disk. The application only reads `oro_app` and `cache` (the cache is read-only), so memory would not reduce disk I/O for them. Also, a tmpfs volume of the local driver is unmounted, and its data is lost, as soon as no container uses it, so the content would not survive from `volume-init`, `install` or `restore` to the services that use it.
+
+> **NOTE:** `tmpfs` and an empty value are the only supported values. Do not set `ORO_SERVICES_TMPFS=no`: the names of include files are built from the value, and compose fails with `compose-no-...yaml: no such file or directory`. Set it empty instead.
 
 ## Actions
 

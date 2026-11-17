@@ -1,0 +1,6 @@
+# Data of the PostgreSQL server in memory (ORO_SERVICES_TMPFS=tmpfs), instead of the volume of the image on disk.
+# Included by compose-common.yaml.
+services:
+  db:
+    tmpfs:
+      - /var/lib/postgresql

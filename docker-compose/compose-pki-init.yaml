@@ -1,0 +1,21 @@
+# The definition of pki-init, used through `extends` by compose-proxy-https.yaml and compose-tls.yaml.
+# Not included by compose.yaml itself. The volumes etc-pki and services-tls are declared by the files that use it.
+#
+# Prepares the CA and its trust for https, and the certificate of the services for ORO_SERVICES_TLS=tls.
+# Uses the runtime image: it exists before the application images are built.
+services:
+  pki-init:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    user: root
+    entrypoint: /usr/local/bin/docker-entrypoint-init.sh
+    command: pki-init
+    environment:
+      CAROOT:
+      ORO_CAROOT: $ORO_CAROOT
+      ORO_APP_PROTOCOL: $ORO_APP_PROTOCOL
+      ORO_SERVICES_TLS: ${ORO_SERVICES_TLS-}
+    volumes:
+      - ${CAROOT-/var/empty}:${CAROOT-/var/empty}:ro
+      - etc-pki:/etc/pki
+      - services-tls:/etc/oro-services-tls
+      - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint-init.sh:ro

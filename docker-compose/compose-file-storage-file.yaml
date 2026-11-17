@@ -24,9 +24,6 @@ services:
   cron:
     volumes: *default-volumes_file_storage
 
-  operator:
-    volumes: *default-volumes_file_storage
-
   install:
     volumes: *default-volumes_file_storage
 

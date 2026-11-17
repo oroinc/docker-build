@@ -39,6 +39,7 @@ BUILD_CONFIG="${BUILD_CONFIG-vendor/oro/platform/build}"
 DIR_DIFF="${DIR_DIFF-$WORKSPACE/stats}"
 DIFF_PHP="diff_phpmd.txt"
 FILE_DIFF="diff.txt"
+FULL_CHECK_FILES='^(application/[^/]+/((composer|dev)\.json|dev\.lock)$|package/platform/build/|docker-build/scripts/test_phpmd\.sh$)'
 EXCLUDED_PACKAGES="(/doctrine-extensions|/magento1|/crm-magento1-connector|/magento-contact-us|/crm-magento-embedded-contact-us|/api-doc-bundle|/maker)"
 ORO_TESTS_PATH="${ORO_TESTS_PATH-vendor/oro}"
 
@@ -67,7 +68,14 @@ run() {
         docker run --pull always --security-opt label=disable --rm -u "$(id -u):$(id -g)" -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -v "${HOME}":"${HOME}" "$ORO_PUBLIC_PROJECT/builder:$BASELINE_VERSION" parallel --record-env
     fi
 
-    if [[ -e "$LOGS/$FILE_DIFF" ]]; then
+    # A change of the PHPMD config (in the platform build folder) or of the PHP dependencies (which include
+    # PHPMD) can break the files the change did not touch, so then all files are checked, not only the changed ones
+    local check_all=''
+    if [[ -e "$LOGS/$FILE_DIFF" ]] && grep -qE "$FULL_CHECK_FILES" "$LOGS/$FILE_DIFF"; then
+        echo "The PHPMD config or the PHP dependencies were changed: all files are checked"
+        check_all=1
+    fi
+    if [[ -e "$LOGS/$FILE_DIFF" && -z "$check_all" ]]; then
         pushd "$WORKDIR" >/dev/null 2>&1 || {
             echo "Can't enter to folder $WORKDIR"
             exit 1

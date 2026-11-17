@@ -1,4 +1,10 @@
 services:
+  # The CA and its trust for https, the certificate of the services for ORO_SERVICES_TLS=tls: see compose-pki-init.yaml
+  pki-init:
+    extends:
+      file: compose-pki-init.yaml
+      service: pki-init
+
   waf:
     ports:
       - published: 80
@@ -30,8 +36,10 @@ services:
         /docker-entrypoint.sh -m init
     environment:
       CAROOT: $ORO_CAROOT
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
     volumes:
-      - ${CAROOT-/var/empty}:${CAROOT-/var/empty}
       - etc-pki:/etc/pki
 
   php-fpm-app:
@@ -45,24 +53,30 @@ services:
   behat:
     environment:
       CAROOT: $ORO_CAROOT
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
     volumes:
       - etc-pki:/etc/pki
 
   restore:
-    environment:
-      CAROOT:
-      ORO_CAROOT:
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
     volumes:
       - cache:/var/www/oro/var/cache
-      - ${CAROOT-/var/empty}:${CAROOT-/var/empty}
       - etc-pki:/etc/pki
       - ./../docker/docker-entrypoint-init.sh:/usr/local/bin/docker-entrypoint.sh
 
   chrome:
     environment:
       CAROOT: $ORO_CAROOT
+    depends_on:
+      "pki-init":
+        condition: service_completed_successfully
     volumes:
       - etc-pki:/etc/pki
 
 volumes:
   etc-pki: {}
+  services-tls: {}

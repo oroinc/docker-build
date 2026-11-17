@@ -126,7 +126,7 @@ routing_dump() {
 }
 
 clear_cache() {
-    local REDIS_CONNECT REDIS_PROTOCOL REDIS_BASES
+    local REDIS_CONNECT REDIS_PROTOCOL REDIS_BASES REDIS_TLS_ARGS REDIS_CAFILE
     REDIS_BASES=${1-'ORO_SESSION_DSN ORO_REDIS_CACHE_DSN ORO_REDIS_DOCTRINE_DSN ORO_REDIS_LAYOUT_DSN'}
     _note "Clear cache for $ORO_ENV environment"
     [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
@@ -136,9 +136,18 @@ clear_cache() {
         REDIS_CONNECT=${!REDIS_CONNECT}
         _note "REDIS_CONNECT=$REDIS_CONNECT"
         REDIS_PROTOCOL=$(echo "$REDIS_CONNECT" | cut -d':' -f1)
+        REDIS_TLS_ARGS=()
+        if [[ "$REDIS_PROTOCOL" == 'rediss' ]]; then
+            # redis-cli does not take the ssl[...] options of the DSN: pass the CA file and drop the query
+            REDIS_TLS_ARGS=(--tls)
+            REDIS_CAFILE=$(echo "$REDIS_CONNECT" | sed -n 's/.*[?&]ssl\(\[\|%5B\)cafile\(\]\|%5D\)=\([^&]*\).*/\3/p')
+            [[ -n "$REDIS_CAFILE" ]] && REDIS_TLS_ARGS+=(--cacert "$REDIS_CAFILE")
+            REDIS_CONNECT="redis${REDIS_CONNECT#rediss}"
+            REDIS_CONNECT=${REDIS_CONNECT%%\?*}
+        fi
         if [[ "$REDIS_PROTOCOL" =~ ^redis ]]; then
             [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
-            redis-cli -u "$REDIS_CONNECT" FLUSHDB || {
+            redis-cli "${REDIS_TLS_ARGS[@]}" -u "$REDIS_CONNECT" FLUSHDB || {
                 set +x
                 _error "Can't run FLUSHDB"
             }
@@ -393,18 +402,58 @@ cache_restore() {
     echo
 }
 
-install_system_caroot() {
-    # Install CAROOT certificate to Firefox and/or Chrome/Chromium trust store
-    if [[ -f "$CAROOT/rootCA-key.pem" && -f "$CAROOT/rootCA.pem" ]]; then
-        _note "Copy user CAROOT certificates to volume"
-        [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
-        sudo mkdir -p "$ORO_CAROOT"
-        sudo cp -fv "$CAROOT"/* "$ORO_CAROOT"/
-        set +x
+prepare_caroot() {
+    # The CA of the stack in $ORO_CAROOT (mkcert file names). A CA of the user on the host ($CAROOT) has priority and
+    # replaces the CA in the volume. Without one, the CA in the volume is kept, or a new one is created.
+    if [[ -n "$CAROOT" && "$CAROOT" != "$ORO_CAROOT" ]]; then
+        # Fail instead of creating another CA: the browser of the user trusts the CA in CAROOT
+        local HINT="Fix the CA in CAROOT, or unset CAROOT to use the CA in $ORO_CAROOT"
+        [[ -f "$CAROOT/rootCA.pem" && -f "$CAROOT/rootCA-key.pem" ]] || _error "CAROOT=$CAROOT does not contain rootCA.pem and rootCA-key.pem. $HINT"
+        [[ "$(openssl x509 -in "$CAROOT/rootCA.pem" -noout -pubkey)" == "$(openssl pkey -in "$CAROOT/rootCA-key.pem" -pubout)" ]] || _error "CAROOT=$CAROOT: rootCA-key.pem does not match rootCA.pem. $HINT"
+        openssl x509 -in "$CAROOT/rootCA.pem" -noout -ext basicConstraints | grep -q 'CA:TRUE' || _error "CAROOT=$CAROOT: rootCA.pem is not a CA certificate. $HINT"
+        _note "Use the CA from CAROOT=$CAROOT"
+        mkdir -p "$ORO_CAROOT"
+        cp -f "$CAROOT/rootCA.pem" "$CAROOT/rootCA-key.pem" "$ORO_CAROOT/" || _error "Can't copy the CA to $ORO_CAROOT"
+    elif [[ -f "$ORO_CAROOT/rootCA.pem" && -f "$ORO_CAROOT/rootCA-key.pem" ]]; then
+        _note "Use the CA from $ORO_CAROOT"
+    else
+        _note "Create a new CA in $ORO_CAROOT"
+        mkdir -p "$ORO_CAROOT"
+        # No -addext basicConstraints: req -x509 adds it from v3_ca, and a duplicate makes the CA invalid
+        openssl req -x509 -new -nodes -newkey rsa:3072 -sha256 -days 3650 \
+            -keyout "$ORO_CAROOT/rootCA-key.pem" -out "$ORO_CAROOT/rootCA.pem" \
+            -subj "/O=Oro development CA/CN=Oro development CA ${HOSTNAME}" 2>/dev/null || _error "Can't create the CA"
     fi
-    [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
-    sudo bash -c "CAROOT='$ORO_CAROOT' TRUST_STORES=system /usr/local/bin/mkcert -install"
-    set +x
+    chmod 0644 "$ORO_CAROOT/rootCA.pem"
+    chmod 0400 "$ORO_CAROOT/rootCA-key.pem"
+}
+
+trust_caroot() {
+    # The trust store is in the etc-pki volume, so every container that mounts it trusts the CA
+    _note "Add the CA from $ORO_CAROOT to the system trust store"
+    cp -f "$ORO_CAROOT/rootCA.pem" /etc/pki/ca-trust/source/anchors/oro_caroot.pem || _error "Can't add the CA to the trust store"
+    update-ca-trust extract || _error "Can't update the trust store"
+}
+
+issue_services_cert() {
+    # One certificate for all the services the application connects to over TLS
+    local DIR=/etc/oro-services-tls
+    _note "Issue the certificate of the services in $DIR"
+    mkdir -p "$DIR"
+    openssl req -new -nodes -newkey rsa:2048 -subj "/CN=session-storage" \
+        -keyout "$DIR/server-key.pem" -out "$DIR/server.csr" 2>/dev/null || _error "Can't create the request of the services certificate"
+    openssl x509 -req -in "$DIR/server.csr" -CA "$ORO_CAROOT/rootCA.pem" -CAkey "$ORO_CAROOT/rootCA-key.pem" \
+        -CAcreateserial -CAserial "$DIR/rootCA.srl" -days 825 -sha256 -out "$DIR/server.pem" -extfile <(printf '%s\n' \
+            'subjectAltName=DNS:session-storage,DNS:mq,DNS:search-engine,DNS:db,DNS:pdf-conversion,DNS:mail,DNS:localhost,IP:127.0.0.1' \
+            'extendedKeyUsage=serverAuth' \
+            'keyUsage=critical,digitalSignature,keyEncipherment' \
+            'basicConstraints=CA:FALSE') 2>/dev/null || _error "Can't sign the services certificate"
+    rm -f "$DIR/server.csr" "$DIR/rootCA.srl"
+    cp -f "$ORO_CAROOT/rootCA.pem" "$DIR/ca.pem"
+    # Read by the users of Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg. For development only.
+    chmod 0644 "$DIR/server.pem" "$DIR/server-key.pem" "$DIR/ca.pem"
+    # PostgreSQL refuses a key that others can read, but takes one of root readable by its group (999 in the image)
+    install -o root -g 999 -m 0640 "$DIR/server-key.pem" "$DIR/db-key.pem" || _error "Can't create the key of PostgreSQL"
 }
 
 set_files_owner() {
@@ -467,10 +516,17 @@ elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     warmup_cache
     reindex
     routing_dump
-    if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' ]]; then
-        install_system_caroot
-    fi
     set_files_owner
+    exit 0
+elif [[ "$1" == 'pki-init' ]]; then
+    # Runs before the other services. The CA and its trust are needed for https and for TLS of the services.
+    if [[ "X$ORO_APP_PROTOCOL" == 'Xhttps' || "X$ORO_SERVICES_TLS" == 'Xtls' ]]; then
+        prepare_caroot
+        trust_caroot
+    fi
+    if [[ "X$ORO_SERVICES_TLS" == 'Xtls' ]]; then
+        issue_services_cert
+    fi
     exit 0
 elif [[ "$1" == 'restore-pg' ]]; then
     restore_pg_db '/oro_init/db.sql'

@@ -1,0 +1,7 @@
+services:
+  # MailCatcher (ORO_MAIL_SERVICE=mailcatcher, the default): SMTP on 1025, the web UI and API on 1080
+  # (ORO_MAILER_WEB_URL). It has no TLS: ORO_SERVICES_TLS=tls needs ORO_MAIL_SERVICE=mailpit.
+  mail:
+    image: ${ORO_PROJECT}mailcatcher
+    hostname: mail
+    restart: unless-stopped

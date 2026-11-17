@@ -81,12 +81,6 @@ services:
     volumes:
       - etc-php-d:/etc/php.d/
 
-  operator:
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - etc-php-d:/etc/php.d/
-
   php-fpm-app:
     image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
     extra_hosts:

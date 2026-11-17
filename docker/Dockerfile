@@ -22,8 +22,10 @@ LABEL com.oroinc.orocloud.app="/var/www/oro" \
     org.opencontainers.image.base.name="${ORO_IMAGE_FROM}:${ORO_BASELINE_VERSION}"
 
 RUN --mount=type=bind,target=/source <<EOR
-    set -ex
-    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER
+    set -exo pipefail
+    rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chmod=D755,F644 --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER
+    find $ORO_APP_FOLDER -xtype l -delete
+    chmod +x "$ORO_APP_FOLDER"/bin/*
     mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost}
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost} 2>/dev/null
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null
