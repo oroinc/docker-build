@@ -6,6 +6,7 @@ ARG ORO_PRIVATE_PROJECT
 ARG ORO_IMAGE_BUILDER=${ORO_PUBLIC_PROJECT}/builder
 ARG ORO_BASELINE_VERSION
 
+FROM scratch AS oro-cache
 FROM ${ORO_PRIVATE_PROJECT}/aegypius/mkcert-for-nginx-proxy AS mkcert
 FROM ${ORO_IMAGE_BUILDER}:${ORO_BASELINE_VERSION} AS composer
 FROM ${ORO_IMAGE_FROM}:${ORO_IMAGE_TAG} AS data-tools
@@ -54,7 +55,7 @@ ARG ORO_MONGO_PASSWORD
 # use CACHEBUST for disable cache for only one RUN
 ARG CACHEBUST=1
 RUN echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
-VOLUME "/var/www/oro"
+COPY --from=oro-cache / /oro_init/cache/
 
 FROM data-tools AS backup-files
 ARG ORO_DB_HOST
@@ -69,4 +70,4 @@ ENV ORO_BACKUP_DATA=$ORO_BACKUP_DATA
 # use CACHEBUST for disable cache for only one RUN
 ARG CACHEBUST=1
 RUN --mount=type=bind,target=$ORO_BACKUP_DATA echo $CACHEBUST && /usr/local/bin/docker-entrypoint.sh backup
-VOLUME "/var/www/oro"
+COPY --from=oro-cache / /oro_init/cache/

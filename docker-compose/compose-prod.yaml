@@ -1,4 +1,46 @@
-# add volume oro_app only
+# The application read-only from the image: Docker Compose 2.35.0 or later and an Engine with image mounts
+x-image-mount: &image-mount
+  type: image
+  source: $ORO_IMAGE:$ORO_IMAGE_TAG
+  target: /var/www/oro
+  read_only: true
+  image:
+    subpath: var/www/oro
+
+x-app-from-image: &app-from-image
+  volumes:
+    - *image-mount
+    - logs:/var/www/oro/var/logs
+    - sessions:/var/www/oro/var/sessions
+
+services:
+  install:
+    volumes:
+      - *image-mount
+      - logs:/var/www/oro/var/logs
+      - sessions:/var/www/oro/var/sessions
+      - private_storage:/var/www/oro/var/data
+  update:
+    volumes:
+      - *image-mount
+      - logs:/var/www/oro/var/logs
+      - sessions:/var/www/oro/var/sessions
+      - private_storage:/var/www/oro/var/data
+    tmpfs:
+      # The locks of update must not reach web; owned by www-data
+      - ${ORO_MAINTENANCE_LOCK_FOLDER}:uid=2002,gid=2001
+  volume-init: *app-from-image
+  restore: *app-from-image
+  warmup-cache: *app-from-image
+  php-fpm-app: *app-from-image
+  web: *app-from-image
+  ws: *app-from-image
+  consumer: *app-from-image
+  cron: *app-from-image
+
 volumes:
   oro_app:
   oro_test:
+  logs:
+  sessions:
+  private_storage:

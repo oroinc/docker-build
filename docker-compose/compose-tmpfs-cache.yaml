@@ -1,0 +1,83 @@
+# The volume "cache" is a host folder prepared by cache-init, hence nocopy
+x-cache-rw: &cache-rw
+  depends_on:
+    "cache-init":
+      condition: service_completed_successfully
+  volumes:
+    - type: volume
+      source: cache
+      target: /var/www/oro/var/cache
+      volume:
+        nocopy: true
+
+x-cache-ro: &cache-ro
+  depends_on:
+    "cache-init":
+      condition: service_completed_successfully
+  volumes:
+    - type: volume
+      source: cache
+      target: /var/www/oro/var/cache
+      read_only: true
+      volume:
+        nocopy: true
+
+services:
+  backup:
+    build:
+      additional_contexts:
+        oro-cache: ${ORO_CACHE_TMPFS_PATH:-/dev/shm/oro-cache}/${COMPOSE_PROJECT_NAME}
+  backup-test:
+    build:
+      additional_contexts:
+        oro-cache: ${ORO_CACHE_TMPFS_PATH:-/dev/shm/oro-cache}/${COMPOSE_PROJECT_NAME}
+
+  cache-init:
+    image: $ORO_IMAGE_BASE_RUNTIME:$ORO_BASELINE_VERSION
+    user: root
+    entrypoint: sh
+    command:
+      - -ec
+      - |
+        mkdir -p /cache/${COMPOSE_PROJECT_NAME}
+        if [ ! -e /marker/prepared ]; then
+          find /cache/${COMPOSE_PROJECT_NAME} -mindepth 1 -delete
+          touch /marker/prepared
+        fi
+        chown www-data:www-data /cache/${COMPOSE_PROJECT_NAME}
+    volumes:
+      - type: bind
+        source: ${ORO_CACHE_TMPFS_PATH:-/dev/shm/oro-cache}
+        target: /cache
+        bind:
+          create_host_path: true
+      - cache-marker:/marker
+
+  consumer: *cache-ro
+  cron: *cache-ro
+  functional: *cache-rw
+  install: *cache-rw
+  install-test: *cache-rw
+  karma: *cache-rw
+  php-fpm-app: *cache-ro
+  restore: *cache-rw
+  restore-test: *cache-rw
+  update: *cache-rw
+  update-test: *cache-rw
+  warmup-cache: *cache-rw
+  web: *cache-ro
+  ws: *cache-ro
+
+  behat:
+    tmpfs:
+      # uid and gid of www-data
+      - /var/www/oro/var/cache:uid=2002,gid=2001
+
+volumes:
+  cache-marker:
+  cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${ORO_CACHE_TMPFS_PATH:-/dev/shm/oro-cache}/${COMPOSE_PROJECT_NAME}

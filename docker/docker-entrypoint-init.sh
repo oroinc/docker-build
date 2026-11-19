@@ -53,6 +53,7 @@ restore_pg_db() {
     [[ "$ORO_TABLES_NUM" =~ ^[0-9]+$ ]] || _error "Can't determine PostgreSQL table count"
     if [ "$ORO_TABLES_NUM" -eq 0 ]; then
         _note "Restore dump from file: $DB_FILE to: $ORO_DB_NAME"
+        RESTORE_DUMP_LOADED=1
         [[ $ORO_ENTRYPOINT_QUIET ]] || set -x
         $PG_COMMAND --set ON_ERROR_STOP=on $DB_USER_O $DB_HOST_O $DB_PORT_O -d "$ORO_DB_NAME" <"$DB_FILE" >/dev/null || _error "Can't restore dump"
         $PG_COMMAND -q $DB_USER_O $DB_HOST_O $DB_PORT_O $ORO_DB_NAME -c "GRANT CONNECT ON DATABASE $ORO_DB_NAME TO $ORO_DB_USER;" || _error "Can't grant privileges 1"
@@ -108,6 +109,21 @@ copy_files() {
     _note "Copy files from $SRC_DIR to $DST_DIR folders"
     mkdir -p "$DST_DIR"
     rsync -a --delete --progress "$SRC_DIR" "$DST_DIR" || _error "Can't copy from $SRC_DIR to $DST_DIR folders"
+}
+
+restore_cache() {
+    local SRC="/oro_init/cache/$ORO_ENV" DST="$APP_FOLDER/var/cache/$ORO_ENV"
+    [[ -n "$ORO_ENV" && -d "$SRC" && "X$ORO_DOCKER_FOLDER_MODE" != 'Xdev' && -z "$ORO_IMAGE_TAG_OLD" && -n "$RESTORE_DUMP_LOADED" ]] || return 0
+    if [[ -n "$(ls -A "$DST" 2>/dev/null)" ]]; then
+        _note "Skip the cache of the install: $DST is not empty"
+        return 0
+    fi
+    _note "Copy the cache of the install from $SRC to $DST"
+    rm -rf "$DST.tmp"
+    if ! { mkdir -p "$DST.tmp" && rsync -rlpt --quiet "$SRC/" "$DST.tmp/" && { rmdir "$DST" 2>/dev/null || [[ ! -e "$DST" ]]; } && mv "$DST.tmp" "$DST"; }; then
+        _warn "Can't copy the cache of the install, it will be warmed up"
+        rm -rf "$DST.tmp" || :
+    fi
 }
 
 warmup_cache() {
@@ -493,6 +509,7 @@ elif [ "$1" == 'backup-mongo' ]; then
     exit 0
 elif [[ "$1" == 'restore' || "$1" == 'restore-test' ]]; then
     restore_pg_db '/oro_init/db.sql'
+    restore_cache
     if [[ -f "$APP_FOLDER/config/parameters.yml" ]] && grep -q '^[[:blank:]]*gaufrette_adapter.public' "$APP_FOLDER/config/parameters.yml"; then
         mongo_put '/oro_init/public_storage' "public_${ORO_MONGO_DATABASE}"
         mongo_put '/oro_init/private_storage' "private_${ORO_MONGO_DATABASE}"

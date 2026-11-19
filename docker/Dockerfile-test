@@ -38,4 +38,3 @@ COPY --from=test behat.yml /var/www/oro/behat_oro.yml
 COPY --from=test docker-entrypoint-test.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT [ "docker-entrypoint.sh" ]
 WORKDIR $ORO_APP_FOLDER
-VOLUME "$ORO_APP_FOLDER/var/cache"

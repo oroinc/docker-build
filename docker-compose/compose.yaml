@@ -12,6 +12,8 @@ include:
       - compose${ORO_DEBUGGER}.yaml
       # TLS for Redis, RabbitMQ, Elasticsearch, PostgreSQL, SMTP and Gotenberg: ORO_SERVICES_TLS=tls, otherwise compose-no.yaml
       - compose-${ORO_SERVICES_TLS:-no}.yaml
+      # The cache in memory (ORO_SERVICES_TMPFS=tmpfs), otherwise compose-no.yaml. Must stay the last include
+      - compose-${ORO_SERVICES_TMPFS:-no}${ORO_SERVICES_TMPFS:+-cache}.yaml
     env_file:
       - .env
       - .env-ce-${ORO_CE:-no}

@@ -26,7 +26,7 @@ RUN --mount=type=bind,target=/source <<EOR
     rsync -a --delete --exclude-from=/source/.rsync-exclude-prod --chmod=D755,F644 --chown="$ORO_USER":"$ORO_USER" /source/ $ORO_APP_FOLDER
     find $ORO_APP_FOLDER -xtype l -delete
     chmod +x "$ORO_APP_FOLDER"/bin/*
-    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost}
+    mkdir -p "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost} "$ORO_APP_FOLDER"/public/media
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/var/{data,cache,logs,sessions,maintenance,multihost} 2>/dev/null
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER_RUNTIME" "$ORO_APP_FOLDER"/public/media 2>/dev/null
     chown -R "$ORO_USER_RUNTIME":"$ORO_USER" /var/log/php-fpm
@@ -34,5 +34,3 @@ RUN --mount=type=bind,target=/source <<EOR
 EOR
 
 WORKDIR $ORO_APP_FOLDER
-VOLUME "/var/www/oro"
-VOLUME "$ORO_APP_FOLDER/var/cache"
